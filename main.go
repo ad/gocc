@@ -71,11 +71,6 @@ func TaskCreatetHandler(w http.ResponseWriter, r *http.Request) {
 		usersCount, _ := client.SCard("tasks-new").Result()
 		log.Println("tasks-new", users, usersCount)
 
-		// err := client.Set("task-"+Uuid+"-status", "new", 0).Err()
-		// if err != nil {
-		// 	panic(err)
-		// }
-
 		action := Action{Action: "ping", Param: ip, Uuid: Uuid}
 		js, _ := json.Marshal(action)
 
@@ -85,7 +80,7 @@ func TaskCreatetHandler(w http.ResponseWriter, r *http.Request) {
 
 		log.Println(ip, Uuid)
 	}
-	CreateForm(w, r)
+	ShowCreateForm(w, r)
 }
 
 func TaskBlockHandler(w http.ResponseWriter, r *http.Request) {
@@ -111,40 +106,6 @@ func TaskBlockHandler(w http.ResponseWriter, r *http.Request) {
 				log.Println(t.ZondUuid, `{"status": "error", "message": "task not found"}`)
 				fmt.Fprintf(w, `{"status": "error", "message": "task not found"}`)
 			}
-			// var success = false
-			// if t.Action == "block" {
-			// 	var key = "task-" + t.Uuid + "-status"
-
-			// 	err := client.Watch(func(tx *redis.Tx) error {
-			// 		taskStatus, err := tx.Get(key).Result()
-			// 		if err != nil && err != redis.Nil {
-			// 			log.Println(t.ZondUuid, `{"status": "error", "message": "task not found"}`)
-			// 			fmt.Fprintf(w, `{"status": "error", "message": "task not found"}`)
-			// 			return err
-			// 		}
-
-			// 		if taskStatus != "new" {
-			// 			log.Println(t.ZondUuid, `{"status": "error", "message": "task blocked"}`)
-			// 			fmt.Fprintf(w, `{"status": "error", "message": "task blocked"}`)
-			// 			return nil
-			// 		} else {
-			// 			_, err = tx.Pipelined(func(pipe redis.Pipeliner) error {
-			// 				pipe.Set(key, "blocked-by-"+t.ZondUuid, 0)
-			// 				success = true
-			// 				return nil
-			// 			})
-			// 			return err
-			// 		}
-			// 	}, key)
-
-			// 	if err == redis.TxFailedErr {
-			// 		log.Println(t.ZondUuid, err)
-			// 		fmt.Fprintf(w, `{"status": "error", "message": "task already blocked"}`)
-			// 	} else if success {
-			// 		log.Println(t.ZondUuid, `{"status": "ok", "message": "ok"}`)
-			// 		fmt.Fprintf(w, `{"status": "ok", "message": "ok"}`)
-			// 	}
-			// }
 		}
 		results = append(results, string(body))
 	} else {
@@ -199,26 +160,6 @@ func TaskResultHandler(w http.ResponseWriter, r *http.Request) {
 						fmt.Fprintf(w, `{"status": "error", "message": "task not found"}`)
 					}
 				}
-
-				// taskStatus, err := client.Get("task-" + t.Uuid + "-status").Result()
-				// if err == redis.Nil {
-				// 	log.Println("task-" + t.Uuid + "-status does not exist")
-				// 	fmt.Fprintf(w, `{"status": "error", "message": "task not found"}`)
-				// } else if err != nil {
-				// 	panic(err)
-				// } else {
-				// 	if taskStatus == "blocked-by-"+t.ZondUuid {
-				// 		err := client.Set("task-"+t.Uuid+"-status", "result-"+t.Result, 0).Err()
-				// 		if err != nil {
-				// 			panic(err)
-				// 		}
-				// 		log.Println("task-"+t.Uuid+"-status", "result-"+t.Result, "by", t.ZondUuid)
-				// 		fmt.Fprintf(w, `{"status": "ok", "message": "ok"}`)
-				// 	} else {
-				// 		log.Println("task status", taskStatus)
-				// 		fmt.Fprintf(w, `{"status": "error", "message": "task blocked"}`)
-				// 	}
-				// }
 			}
 		}
 		results = append(results, string(body))
@@ -240,7 +181,6 @@ func main() {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", GetHandler)
-	mux.HandleFunc("/new", CreateForm)
 	mux.HandleFunc("/sub", ZondSub)
 	mux.HandleFunc("/unsub", ZondUnsub)
 	mux.HandleFunc("/task/create", TaskCreatetHandler)
@@ -258,14 +198,7 @@ func resendOffline() {
 	if len(tasks) > 0 {
 		for _, task := range tasks {
 			js, _ := client.Get("task/" + task).Result()
-			// log.Println(js)
-			// var task Action
-			// err = json.Unmarshal([]byte(js), &task)
-			// if err != nil {
-			// 	log.Println(err.Error())
-			// }
 			go post("http://127.0.0.1:80/pub/tasks", string(js))
-
 			log.Println(js)
 		}
 	}
@@ -275,11 +208,7 @@ func ZondSub(w http.ResponseWriter, r *http.Request) {
 	log.Print(r.Header.Get("X-ZondUuid"), "ZondSub done")
 
 	if len(r.Header.Get("X-ZondUuid")) > 0 {
-		// _ = client.Incr("Zond-counter").Err()
-
 		client.SAdd("Zond-online", r.Header.Get("X-ZondUuid"))
-
-		// var val, _ = client.Get("Zond-counter").Int64()
 		usersCount, _ := client.SCard("Zond-online").Result()
 		fmt.Printf("Active zonds: %d\n", usersCount)
 	}
@@ -289,12 +218,8 @@ func ZondUnsub(w http.ResponseWriter, r *http.Request) {
 	log.Print(r.Header.Get("X-ZondUuid"), "ZondUnsub done")
 
 	if len(r.Header.Get("X-ZondUuid")) > 0 {
-		// _ = client.Decr("Zond-counter").Err()
-
 		client.SRem("Zond-online", r.Header.Get("X-ZondUuid"))
-
 		usersCount, _ := client.SCard("Zond-online").Result()
-		// var val, _ = client.Get("Zond-counter").Int64()
 		fmt.Printf("Active zonds: %d\n", usersCount)
 	}
 }
@@ -311,14 +236,11 @@ func post(url string, jsonData string) string {
 		panic(err)
 	}
 	defer resp.Body.Close()
-
-	// fmt.Println("response Status:", resp.Status)
-	// fmt.Println("response Headers:", resp.Header)
 	body, _ := ioutil.ReadAll(resp.Body)
 	return string(body)
 }
 
-func CreateForm(w http.ResponseWriter, r *http.Request) {
+func ShowCreateForm(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, `
 <html>
 <head>
