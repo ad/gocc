@@ -236,6 +236,7 @@ func main() {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", GetHandler)
+	mux.HandleFunc("/version", ShowVersion)
 	mux.HandleFunc("/sub", ZondSub)
 	mux.HandleFunc("/unsub", ZondUnsub)
 	mux.HandleFunc("/task/create", TaskCreatetHandler)
@@ -315,4 +316,8 @@ func ShowCreateForm(w http.ResponseWriter, r *http.Request) {
 <hr>
 </body>
 </html>`)
+}
+
+func ShowVersion(w http.ResponseWriter, r *http.Request) {
+	fmt.Fprintf(w, version)
 }
