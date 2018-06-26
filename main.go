@@ -21,7 +21,7 @@ import (
 	"github.com/rhysd/go-github-selfupdate/selfupdate"
 )
 
-const version = "0.0.9"
+const version = "0.0.10"
 
 func selfUpdate(slug string) error {
 	previous := semver.MustParse(version)
@@ -125,7 +125,13 @@ func TaskCreatetHandler(w http.ResponseWriter, r *http.Request) {
 			log.Println(ip, taskType, Uuid)
 		}
 	}
-	ShowCreateForm(w, r)
+
+	if r.Header.Get("X-Requested-With") == "xmlhttprequest" {
+		fmt.Fprintf(w, `{"status": "ok"}`)
+	} else {
+		ShowCreateForm(w, r)
+	}
+
 }
 
 func TaskBlockHandler(w http.ResponseWriter, r *http.Request) {
@@ -242,7 +248,7 @@ func main() {
 		}
 	}(selfUpdateTicker)
 
-	resetProcessingTicker := time.NewTicker(30 * time.Second)
+	resetProcessingTicker := time.NewTicker(60 * time.Second)
 	go func(resetProcessingTicker *time.Ticker) {
 		for {
 			select {
@@ -252,6 +258,16 @@ func main() {
 		}
 	}(resetProcessingTicker)
 
+	checkAliveTicker := time.NewTicker(60 * time.Second)
+	go func(checkAliveTicker *time.Ticker) {
+		for {
+			select {
+			case <-checkAliveTicker.C:
+				checkAlive()
+			}
+		}
+	}(checkAliveTicker)
+
 	go resendOffline()
 
 	mux := http.NewServeMux()
@@ -259,6 +275,7 @@ func main() {
 	mux.HandleFunc("/version", ShowVersion)
 	mux.HandleFunc("/sub", ZondSub)
 	mux.HandleFunc("/unsub", ZondUnsub)
+	mux.HandleFunc("/pong", ZondPong)
 	mux.HandleFunc("/task/create", TaskCreatetHandler)
 	mux.HandleFunc("/task/block", TaskBlockHandler)
 	mux.HandleFunc("/task/result", TaskResultHandler)
@@ -303,8 +320,52 @@ func resetProcessing() {
 	}
 }
 
+func checkAlive() {
+	zonds, _ := client.SMembers("Zond-online").Result()
+	if len(zonds) > 0 {
+		// log.Println("active", zonds)
+		for _, zond := range zonds {
+			tp, _ := client.Get(zond + "/alive").Result()
+			// log.Println(zond, tp)
+			if tp == "" {
+				u, _ := uuid.NewV4()
+				var Uuid = u.String()
+				var msec = time.Now().UnixNano() / 1000000
+				action := Action{Action: "alive", Uuid: Uuid, Created: msec}
+				js, _ := json.Marshal(action)
+				client.Set(zond+"/alive", Uuid, 90*time.Second)
+				go post("http://127.0.0.1:80/pub/zond"+zond, string(js))
+			} else {
+				log.Println(zond, "— removed")
+				client.SRem("Zond-online", zond)
+			}
+		}
+	}
+}
+
+func ZondPong(w http.ResponseWriter, r *http.Request) {
+	if r.Method == "POST" {
+		body, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			http.Error(w, "Error reading request body", http.StatusInternalServerError)
+		} else {
+			var t Action
+			err := json.Unmarshal(body, &t)
+			if err != nil {
+				log.Println(err.Error())
+			}
+			tp, _ := client.Get(t.ZondUuid + "/alive").Result()
+			if t.Uuid == tp {
+				client.Del(t.ZondUuid + "/alive")
+				// log.Print(t.ZondUuid, "Zond pong")
+				fmt.Fprintf(w, `{"status": "ok"}`)
+			}
+		}
+	}
+}
+
 func ZondSub(w http.ResponseWriter, r *http.Request) {
-	log.Print(r.Header.Get("X-ZondUuid"), "ZondSub done")
+	log.Println(r.Header.Get("X-ZondUuid"), "— connected")
 
 	if len(r.Header.Get("X-ZondUuid")) > 0 {
 		client.SAdd("Zond-online", r.Header.Get("X-ZondUuid"))
@@ -314,7 +375,7 @@ func ZondSub(w http.ResponseWriter, r *http.Request) {
 }
 
 func ZondUnsub(w http.ResponseWriter, r *http.Request) {
-	log.Print(r.Header.Get("X-ZondUuid"), "ZondUnsub done")
+	log.Println(r.Header.Get("X-ZondUuid"), "— disconnected")
 
 	if len(r.Header.Get("X-ZondUuid")) > 0 {
 		client.SRem("Zond-online", r.Header.Get("X-ZondUuid"))
@@ -332,7 +393,8 @@ func post(url string, jsonData string) string {
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		panic(err)
+		log.Println(err)
+		return "err"
 	}
 	defer resp.Body.Close()
 	body, _ := ioutil.ReadAll(resp.Body)
