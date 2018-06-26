@@ -8,11 +8,33 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
 	"time"
 
+	"github.com/blang/semver"
 	"github.com/go-redis/redis"
 	"github.com/nu7hatch/gouuid"
+	"github.com/rhysd/go-github-selfupdate/selfupdate"
 )
+
+const version = "0.0.1"
+
+func selfUpdate(slug string) error {
+	previous := semver.MustParse(version)
+	latest, err := selfupdate.UpdateSelf(previous, slug)
+	if err != nil {
+		return err
+	}
+
+	if previous.Equals(latest.Version) {
+		fmt.Println("Current binary is the latest version", version)
+	} else {
+		fmt.Println("Update successfully done to version", latest.Version)
+		fmt.Println("Release note:\n", latest.ReleaseNotes)
+	}
+
+	return nil
+}
 
 type Action struct {
 	ZondUuid string `json:"zond"`
@@ -186,6 +208,19 @@ func init() {
 }
 
 func main() {
+	ticker := time.NewTicker(10 * time.Minute)
+	go func(ticker *time.Ticker) {
+		for {
+			select {
+			case <-ticker.C:
+				if err := selfUpdate("ad/gocc"); err != nil {
+					fmt.Fprintln(os.Stderr, err)
+					os.Exit(1)
+				}
+			}
+		}
+	}(ticker)
+
 	go resendOffline()
 	// _ = client.Set("Zond-counter", 0, 0).Err()
 
