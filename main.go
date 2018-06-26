@@ -226,6 +226,8 @@ func init() {
 }
 
 func main() {
+	log.Printf("Started version %s", version)
+
 	selfUpdateTicker := time.NewTicker(10 * time.Minute)
 	go func(selfUpdateTicker *time.Ticker) {
 		for {
