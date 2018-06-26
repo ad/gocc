@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/blang/semver"
@@ -17,7 +18,7 @@ import (
 	"github.com/rhysd/go-github-selfupdate/selfupdate"
 )
 
-const version = "0.0.2"
+const version = "0.0.3"
 
 func selfUpdate(slug string) error {
 	previous := semver.MustParse(version)
@@ -136,6 +137,7 @@ func TaskBlockHandler(w http.ResponseWriter, r *http.Request) {
 				if count.Val() == int64(1) {
 					client.SAdd("tasks-process", t.ZondUuid+"/"+t.Uuid)
 					client.SAdd("zond-busy", t.ZondUuid)
+					client.Set(t.ZondUuid+"/"+t.Uuid+"/processing", "1", 60*time.Second)
 					log.Println(t.ZondUuid, `{"status": "ok", "message": "ok"}`)
 					fmt.Fprintf(w, `{"status": "ok", "message": "ok"}`)
 				} else {
@@ -216,18 +218,28 @@ func init() {
 }
 
 func main() {
-	ticker := time.NewTicker(10 * time.Minute)
-	go func(ticker *time.Ticker) {
+	selfUpdateTicker := time.NewTicker(10 * time.Minute)
+	go func(selfUpdateTicker *time.Ticker) {
 		for {
 			select {
-			case <-ticker.C:
+			case <-selfUpdateTicker.C:
 				if err := selfUpdate("ad/gocc"); err != nil {
 					fmt.Fprintln(os.Stderr, err)
 					os.Exit(1)
 				}
 			}
 		}
-	}(ticker)
+	}(selfUpdateTicker)
+
+	resetProcessingTicker := time.NewTicker(30 * time.Second)
+	go func(resetProcessingTicker *time.Ticker) {
+		for {
+			select {
+			case <-resetProcessingTicker.C:
+				resetProcessing()
+			}
+		}
+	}(resetProcessingTicker)
 
 	go resendOffline()
 	// _ = client.Set("Zond-counter", 0, 0).Err()
@@ -256,6 +268,33 @@ func resendOffline() {
 			js, _ := client.Get("task/" + task).Result()
 			go post("http://127.0.0.1:80/pub/tasks", string(js))
 			log.Println(js)
+		}
+	}
+}
+
+func resetProcessing() {
+	tasks, _ := client.SMembers("tasks-process").Result()
+	// log.Println("processing tasks", tasks)
+
+	if len(tasks) > 0 {
+		for _, task := range tasks {
+			s := strings.Split(task, "/")
+			ZondUuid, taskUuid := s[0], s[1]
+
+			tp, _ := client.Get(task + "/processing").Result()
+			if tp != "1" {
+				log.Println("Removed outdated task", tp, ZondUuid, taskUuid)
+				client.SRem("zond-busy", ZondUuid)
+				client.SRem("tasks-process", task)
+
+				client.SAdd("tasks-new", taskUuid)
+
+				js, _ := client.Get("task/" + taskUuid).Result()
+				go post("http://127.0.0.1:80/pub/tasks", string(js))
+				log.Println("Task resend to queue", tp, js)
+			} else {
+				// log.Println("Waiting for removing task ", tp, task)
+			}
 		}
 	}
 }
