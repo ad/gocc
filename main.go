@@ -18,7 +18,7 @@ import (
 	"github.com/rhysd/go-github-selfupdate/selfupdate"
 )
 
-const version = "0.0.3"
+const version = "0.0.4"
 
 func selfUpdate(slug string) error {
 	previous := semver.MustParse(version)
@@ -38,13 +38,14 @@ func selfUpdate(slug string) error {
 }
 
 type Action struct {
-	ZondUuid string `json:"zond"`
-	Action   string `json:"action"`
-	Param    string `json:"param"`
-	Result   string `json:"result"`
-	Uuid     string `json:"uuid"`
-	Created  int64  `json:"created"`
-	Updated  int64  `json:"updated"`
+	ZondUuid   string `json:"zond"`
+	Action     string `json:"action"`
+	Param      string `json:"param"`
+	Result     string `json:"result"`
+	Uuid       string `json:"uuid"`
+	ParentUuid string `json:"parent"`
+	Created    int64  `json:"created"`
+	Updated    int64  `json:"updated"`
 }
 
 type Result struct {
@@ -60,8 +61,6 @@ var client = redis.NewClient(&redis.Options{
 	Password: "", // no password set
 	DB:       0,  // use default DB
 })
-
-// var results []string
 
 func GetHandler(w http.ResponseWriter, r *http.Request) {
 	log.Println("GET done", r)
@@ -149,7 +148,6 @@ func TaskBlockHandler(w http.ResponseWriter, r *http.Request) {
 				fmt.Fprintf(w, `{"status": "error", "message": "only one task at time is allowed"}`)
 			}
 		}
-		// results = append(results, string(body))
 	} else {
 		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
 	}
@@ -206,7 +204,6 @@ func TaskResultHandler(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 		}
-		// results = append(results, string(body))
 	} else {
 		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
 	}
@@ -242,9 +239,6 @@ func main() {
 	}(resetProcessingTicker)
 
 	go resendOffline()
-	// _ = client.Set("Zond-counter", 0, 0).Err()
-
-	// results = append(results, time.Now().Format(time.RFC3339))
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", GetHandler)
@@ -274,8 +268,6 @@ func resendOffline() {
 
 func resetProcessing() {
 	tasks, _ := client.SMembers("tasks-process").Result()
-	// log.Println("processing tasks", tasks)
-
 	if len(tasks) > 0 {
 		for _, task := range tasks {
 			s := strings.Split(task, "/")
@@ -292,8 +284,6 @@ func resetProcessing() {
 				js, _ := client.Get("task/" + taskUuid).Result()
 				go post("http://127.0.0.1:80/pub/tasks", string(js))
 				log.Println("Task resend to queue", tp, js)
-			} else {
-				// log.Println("Waiting for removing task ", tp, task)
 			}
 		}
 	}
