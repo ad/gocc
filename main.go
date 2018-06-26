@@ -21,7 +21,7 @@ import (
 	"github.com/rhysd/go-github-selfupdate/selfupdate"
 )
 
-const version = "0.0.10"
+const version = "0.0.11"
 
 func selfUpdate(slug string) error {
 	previous := semver.MustParse(version)
@@ -365,9 +365,8 @@ func ZondPong(w http.ResponseWriter, r *http.Request) {
 }
 
 func ZondSub(w http.ResponseWriter, r *http.Request) {
-	log.Println(r.Header.Get("X-ZondUuid"), "— connected")
-
 	if len(r.Header.Get("X-ZondUuid")) > 0 {
+		log.Println(r.Header.Get("X-ZondUuid"), "— connected")
 		client.SAdd("Zond-online", r.Header.Get("X-ZondUuid"))
 		usersCount, _ := client.SCard("Zond-online").Result()
 		fmt.Printf("Active zonds: %d\n", usersCount)
@@ -375,9 +374,8 @@ func ZondSub(w http.ResponseWriter, r *http.Request) {
 }
 
 func ZondUnsub(w http.ResponseWriter, r *http.Request) {
-	log.Println(r.Header.Get("X-ZondUuid"), "— disconnected")
-
 	if len(r.Header.Get("X-ZondUuid")) > 0 {
+		log.Println(r.Header.Get("X-ZondUuid"), "— disconnected")
 		client.SRem("Zond-online", r.Header.Get("X-ZondUuid"))
 		usersCount, _ := client.SCard("Zond-online").Result()
 		fmt.Printf("Active zonds: %d\n", usersCount)
@@ -425,13 +423,15 @@ func ShowCreateForm(w http.ResponseWriter, r *http.Request) {
 		    var dt = new Date(event.updated).toLocaleString()
 		    cell1.innerHTML = dt;
 		    cell2.innerHTML = event.zond;
-		    cell3.innerHTML = event.action+' ' + event.param;
+		    cell3.innerHTML = '<span class="action">' + event.action + '</span> <span class="param">' + event.param + '</span>';
 		    cell4.innerHTML = event.result;
+
+		    cell3.onclick = function () {
+            	createTask(this.querySelector('.action').innerHTML, this.querySelector('.param').innerHTML);
+        	}
 		};
 
-		function createTask() {
-			var taskType = document.getElementById('type').value;
-			var taskIp = document.getElementById('ip').value;
+		function createTask(taskType, taskIp) {
 		    var xhr = new XMLHttpRequest();
 
 			xhr.open('POST', '/task/create');
@@ -475,7 +475,7 @@ func ShowCreateForm(w http.ResponseWriter, r *http.Request) {
 </head>
 <body>
     <div>
-        <form method="POST" action="/task/create" onSubmit="return createTask()">
+        <form method="POST" action="/task/create" onSubmit="return createTask(document.getElementById('type').value, document.getElementById('ip').value)">
         	<select name="type" id="type">
         		<option value="ping">PING</option>
         		<option value="head">HEAD</option>
