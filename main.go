@@ -21,7 +21,7 @@ import (
 	"github.com/rhysd/go-github-selfupdate/selfupdate"
 )
 
-const version = "0.0.7"
+const version = "0.0.8"
 
 func selfUpdate(slug string) error {
 	previous := semver.MustParse(version)
@@ -345,7 +345,7 @@ func ShowCreateForm(w http.ResponseWriter, r *http.Request) {
 <head>
     <title>Control center</title>
     <script>
-		var socket = new WebSocket("ws://localhost:80/sub/tasks/done");
+		var socket = new WebSocket("ws://" + location.host + "/sub/tasks/done");
 
 		socket.onmessage = function(message) {
 			var event = JSON.parse(message.data);
