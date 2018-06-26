@@ -12,13 +12,16 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kardianos/osext"
+	"syscall"
+
 	"github.com/blang/semver"
 	"github.com/go-redis/redis"
 	"github.com/nu7hatch/gouuid"
 	"github.com/rhysd/go-github-selfupdate/selfupdate"
 )
 
-const version = "0.0.4"
+const version = "0.0.5"
 
 func selfUpdate(slug string) error {
 	previous := semver.MustParse(version)
@@ -28,10 +31,18 @@ func selfUpdate(slug string) error {
 	}
 
 	if previous.Equals(latest.Version) {
-		fmt.Println("Current binary is the latest version", version)
+		// fmt.Println("Current binary is the latest version", version)
 	} else {
 		fmt.Println("Update successfully done to version", latest.Version)
 		fmt.Println("Release note:\n", latest.ReleaseNotes)
+		file, err := osext.Executable()
+		if err != nil {
+			return err
+		}
+		err = syscall.Exec(file, os.Args, os.Environ())
+		if err != nil {
+			log.Fatal(err)
+		}
 	}
 
 	return nil
