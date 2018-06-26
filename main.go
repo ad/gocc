@@ -17,7 +17,7 @@ import (
 	"github.com/rhysd/go-github-selfupdate/selfupdate"
 )
 
-const version = "0.0.1"
+const version = "0.0.2"
 
 func selfUpdate(slug string) error {
 	previous := semver.MustParse(version)
@@ -87,24 +87,32 @@ func TaskCreatetHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		u, _ := uuid.NewV4()
-		var Uuid = u.String()
-		var msec = time.Now().UnixNano() / 1000000
+		taskType := r.FormValue("type")
+		taskTypes := map[string]bool{
+			"ping": true,
+			"head": true,
+		}
 
-		client.SAdd("tasks-new", Uuid)
+		if taskTypes[taskType] {
+			u, _ := uuid.NewV4()
+			var Uuid = u.String()
+			var msec = time.Now().UnixNano() / 1000000
 
-		users, _ := client.SMembers("tasks-new").Result()
-		usersCount, _ := client.SCard("tasks-new").Result()
-		log.Println("tasks-new", users, usersCount)
+			client.SAdd("tasks-new", Uuid)
 
-		action := Action{Action: "ping", Param: ip, Uuid: Uuid, Created: msec}
-		js, _ := json.Marshal(action)
+			users, _ := client.SMembers("tasks-new").Result()
+			usersCount, _ := client.SCard("tasks-new").Result()
+			log.Println("tasks-new", users, usersCount)
 
-		client.Set("task/"+Uuid, string(js), 0)
+			action := Action{Action: taskType, Param: ip, Uuid: Uuid, Created: msec}
+			js, _ := json.Marshal(action)
 
-		go post("http://127.0.0.1:80/pub/tasks", string(js))
+			client.Set("task/"+Uuid, string(js), 0)
 
-		log.Println(ip, Uuid)
+			go post("http://127.0.0.1:80/pub/tasks", string(js))
+
+			log.Println(ip, taskType, Uuid)
+		}
 	}
 	ShowCreateForm(w, r)
 }
@@ -296,6 +304,10 @@ func ShowCreateForm(w http.ResponseWriter, r *http.Request) {
 <body>
     <div>
         <form method="POST" action="/task/create">
+        	<select name="type">
+        		<option value="ping">PING</option>
+        		<option value="head">HEAD</option>
+        	</select>
             <input type="text" name="ip" id="ip" value="127.0.0.1" placeholder="IP">
             <input type="submit" value="Do it!">
         </form>
