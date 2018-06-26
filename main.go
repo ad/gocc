@@ -242,7 +242,7 @@ func main() {
 			case <-selfUpdateTicker.C:
 				if err := selfUpdate("ad/gocc"); err != nil {
 					fmt.Fprintln(os.Stderr, err)
-					os.Exit(1)
+					// os.Exit(1)
 				}
 			}
 		}
