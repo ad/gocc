@@ -37,7 +37,8 @@ var client = redis.NewClient(&redis.Options{
 	Password: "", // no password set
 	DB:       0,  // use default DB
 })
-var results []string
+
+// var results []string
 
 func GetHandler(w http.ResponseWriter, r *http.Request) {
 	log.Println("GET done", r)
@@ -99,18 +100,24 @@ func TaskBlockHandler(w http.ResponseWriter, r *http.Request) {
 				log.Println(err.Error())
 			}
 			log.Println(t.ZondUuid, "wants to", t.Action, t.Uuid)
-
-			count := client.SRem("tasks-new", t.Uuid)
-			if count.Val() == int64(1) {
-				client.SAdd("tasks-process", t.ZondUuid+"/"+t.Uuid)
-				log.Println(t.ZondUuid, `{"status": "ok", "message": "ok"}`)
-				fmt.Fprintf(w, `{"status": "ok", "message": "ok"}`)
+			zondBusy, err := client.SIsMember("zond-busy", t.ZondUuid).Result()
+			if (err != nil) || (zondBusy != true) {
+				count := client.SRem("tasks-new", t.Uuid)
+				if count.Val() == int64(1) {
+					client.SAdd("tasks-process", t.ZondUuid+"/"+t.Uuid)
+					client.SAdd("zond-busy", t.ZondUuid)
+					log.Println(t.ZondUuid, `{"status": "ok", "message": "ok"}`)
+					fmt.Fprintf(w, `{"status": "ok", "message": "ok"}`)
+				} else {
+					log.Println(t.ZondUuid, `{"status": "error", "message": "task not found"}`)
+					fmt.Fprintf(w, `{"status": "error", "message": "task not found"}`)
+				}
 			} else {
-				log.Println(t.ZondUuid, `{"status": "error", "message": "task not found"}`)
-				fmt.Fprintf(w, `{"status": "error", "message": "task not found"}`)
+				log.Println(`{"status": "error", "message": "only one task at time is allowed"}`)
+				fmt.Fprintf(w, `{"status": "error", "message": "only one task at time is allowed"}`)
 			}
 		}
-		results = append(results, string(body))
+		// results = append(results, string(body))
 	} else {
 		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
 	}
@@ -129,6 +136,7 @@ func TaskResultHandler(w http.ResponseWriter, r *http.Request) {
 				log.Println(err.Error())
 			}
 			log.Println(t.ZondUuid, "wants to", t.Action, t.Uuid)
+			client.SRem("zond-busy", t.ZondUuid)
 
 			if t.Action == "result" {
 				taskProcessing, err := client.SIsMember("tasks-process", t.ZondUuid+"/"+t.Uuid).Result()
@@ -166,7 +174,7 @@ func TaskResultHandler(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 		}
-		results = append(results, string(body))
+		// results = append(results, string(body))
 	} else {
 		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
 	}
@@ -181,7 +189,7 @@ func main() {
 	go resendOffline()
 	// _ = client.Set("Zond-counter", 0, 0).Err()
 
-	results = append(results, time.Now().Format(time.RFC3339))
+	// results = append(results, time.Now().Format(time.RFC3339))
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", GetHandler)
