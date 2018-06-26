@@ -21,7 +21,7 @@ import (
 	"github.com/rhysd/go-github-selfupdate/selfupdate"
 )
 
-const version = "0.0.8"
+const version = "0.0.9"
 
 func selfUpdate(slug string) error {
 	previous := semver.MustParse(version)
@@ -264,7 +264,7 @@ func main() {
 	mux.HandleFunc("/task/result", TaskResultHandler)
 
 	log.Printf("listening on port %s", *port)
-	log.Fatal(http.ListenAndServe(":"+*port, mux))
+	log.Fatal(http.ListenAndServe("127.0.0.1:"+*port, mux))
 }
 
 func resendOffline() {
