@@ -20,6 +20,8 @@ type Action struct {
 	Param    string `json:"param"`
 	Result   string `json:"result"`
 	Uuid     string `json:"uuid"`
+	Created  int64  `json:"created"`
+	Updated  int64  `json:"updated"`
 }
 
 type Result struct {
@@ -64,6 +66,7 @@ func TaskCreatetHandler(w http.ResponseWriter, r *http.Request) {
 
 		u, _ := uuid.NewV4()
 		var Uuid = u.String()
+		var msec = time.Now().UnixNano() / 1000000
 
 		client.SAdd("tasks-new", Uuid)
 
@@ -71,7 +74,7 @@ func TaskCreatetHandler(w http.ResponseWriter, r *http.Request) {
 		usersCount, _ := client.SCard("tasks-new").Result()
 		log.Println("tasks-new", users, usersCount)
 
-		action := Action{Action: "ping", Param: ip, Uuid: Uuid}
+		action := Action{Action: "ping", Param: ip, Uuid: Uuid, Created: msec}
 		js, _ := json.Marshal(action)
 
 		client.Set("task/"+Uuid, string(js), 0)
@@ -148,6 +151,7 @@ func TaskResultHandler(w http.ResponseWriter, r *http.Request) {
 						}
 						task.Result = t.Result
 						task.ZondUuid = t.ZondUuid
+						task.Updated = time.Now().UnixNano() / 1000000
 
 						jsonBody, err := json.Marshal(task)
 						if err != nil {
