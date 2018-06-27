@@ -21,7 +21,7 @@ import (
 	"github.com/rhysd/go-github-selfupdate/selfupdate"
 )
 
-const version = "0.0.13"
+const version = "0.0.14"
 
 func selfUpdate(slug string) error {
 	previous := semver.MustParse(version)
@@ -563,8 +563,11 @@ func ShowCreateForm(w http.ResponseWriter, r *http.Request, zonduuid string) {
             <th>Results</th>
         </tr>
     </table>
+    <div style="position: fixed; bottom: 0; right: 0; padding: 5px; font: 9px sans-serif;">
+    	%[2]s
+    </div>
 </body>
-</html>`, zonduuid)
+</html>`, zonduuid, version)
 }
 
 func ShowVersion(w http.ResponseWriter, r *http.Request) {
