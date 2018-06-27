@@ -21,7 +21,7 @@ import (
 	"github.com/rhysd/go-github-selfupdate/selfupdate"
 )
 
-const version = "0.0.12"
+const version = "0.0.13"
 
 func selfUpdate(slug string) error {
 	previous := semver.MustParse(version)
@@ -64,6 +64,13 @@ type Result struct {
 	Message string `json:"message"`
 }
 
+type Zond struct {
+	Uuid    string `json:"uuid"`
+	Name    string `json:"name"`
+	Created int64  `json:"created"`
+	Updated int64  `json:"updated"`
+}
+
 var port = flag.String("port", "9000", "Port to listen on")
 var serveruuid, _ = uuid.NewV4()
 
@@ -86,6 +93,37 @@ func GetHandler(w http.ResponseWriter, r *http.Request) {
 			http.StatusInternalServerError)
 	}
 	w.Write(jsonBody)
+}
+
+func ZondCreatetHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method == "POST" {
+		name := r.FormValue("name")
+
+		u, _ := uuid.NewV4()
+		var Uuid = u.String()
+		var msec = time.Now().UnixNano() / 1000000
+
+		if len(name) == 0 {
+			name = Uuid
+		}
+
+		client.SAdd("zonds", Uuid)
+
+		zond := Zond{Uuid: Uuid, Name: name, Created: msec}
+		js, _ := json.Marshal(zond)
+
+		client.Set("zonds/"+Uuid, string(js), 0)
+
+		log.Println("Zond created", Uuid)
+
+		if r.Header.Get("X-Requested-With") == "xmlhttprequest" {
+			fmt.Fprintf(w, `{"status": "ok", "uuid": "%s"}`, Uuid)
+		} else {
+			ShowCreateForm(w, r, Uuid)
+		}
+	} else {
+		ShowCreateForm(w, r, "")
+	}
 }
 
 func TaskCreatetHandler(w http.ResponseWriter, r *http.Request) {
@@ -129,7 +167,7 @@ func TaskCreatetHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Header.Get("X-Requested-With") == "xmlhttprequest" {
 		fmt.Fprintf(w, `{"status": "ok"}`)
 	} else {
-		ShowCreateForm(w, r)
+		ShowCreateForm(w, r, "")
 	}
 
 }
@@ -273,12 +311,13 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", GetHandler)
 	mux.HandleFunc("/version", ShowVersion)
-	mux.HandleFunc("/sub", ZondSub)
-	mux.HandleFunc("/unsub", ZondUnsub)
-	mux.HandleFunc("/pong", ZondPong)
 	mux.HandleFunc("/task/create", TaskCreatetHandler)
 	mux.HandleFunc("/task/block", TaskBlockHandler)
 	mux.HandleFunc("/task/result", TaskResultHandler)
+	mux.HandleFunc("/zond/pong", ZondPong)
+	mux.HandleFunc("/zond/create", ZondCreatetHandler)
+	mux.HandleFunc("/zond/sub", ZondSub)
+	mux.HandleFunc("/zond/unsub", ZondUnsub)
 
 	log.Printf("listening on port %s", *port)
 	log.Fatal(http.ListenAndServe("127.0.0.1:"+*port, mux))
@@ -399,9 +438,8 @@ func post(url string, jsonData string) string {
 	return string(body)
 }
 
-func ShowCreateForm(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintf(w, `
-<html>
+func ShowCreateForm(w http.ResponseWriter, r *http.Request, zonduuid string) {
+	fmt.Fprintf(w, `<html>
 <head>
     <title>Control center</title>
     <script>
@@ -436,12 +474,36 @@ func ShowCreateForm(w http.ResponseWriter, r *http.Request) {
 
 			xhr.open('POST', '/task/create');
 			xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+			xhr.setRequestHeader('X-Requested-With', 'xmlhttprequest');
 			xhr.onload = function() {
 			    if (xhr.status !== 200) {
 			        alert('Request failed.  Returned status of ' + xhr.status);
 			    }
 			};
 			xhr.send(encodeURI('type='+taskType+'&ip='+taskIp));
+
+			return false;
+		}
+
+		function createZond(zondName) {
+		    var xhr = new XMLHttpRequest();
+
+			xhr.open('POST', '/zond/create');
+			xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+			xhr.setRequestHeader('X-Requested-With', 'xmlhttprequest');
+			xhr.onload = function() {
+			    if (xhr.status !== 200) {
+			        alert('Request failed.  Returned status of ' + xhr.status);
+			    } else {
+			    	data = JSON.parse(xhr.responseText);
+			    	if (data.status == "ok") {
+			    		document.querySelector('#zondUuid').innerText = data.uuid;
+			    	} else {
+			    		document.querySelector('#zondUuid').innerText = data.message;
+			    	}
+			    }
+			};
+			xhr.send(encodeURI('name='+zondName));
 
 			return false;
 		}
@@ -474,7 +536,7 @@ func ShowCreateForm(w http.ResponseWriter, r *http.Request) {
 	</style>
 </head>
 <body>
-    <div>
+    <div style="float: left;">
         <form method="POST" action="/task/create" onSubmit="return createTask(document.getElementById('type').value, document.getElementById('ip').value)">
         	<select name="type" id="type">
         		<option value="ping">PING</option>
@@ -484,7 +546,15 @@ func ShowCreateForm(w http.ResponseWriter, r *http.Request) {
             <input type="submit" value="Do it!">
         </form>
     </div>
-<hr>
+    <div style="float: right;">
+        <form method="POST" action="/zond/create" onSubmit="return createZond(document.getElementById('name').value)">
+            <input type="text" name="name" id="name" value="" placeholder="Zond name">
+            <input type="submit" value="Add Zond"> <span id="zondUuid">%[1]s</span>
+        </form>
+    </div>
+
+	<hr style="clear: both;">
+
     <table border="0" id="commands">
         <tr>
         	<th>Date</th>
@@ -494,7 +564,7 @@ func ShowCreateForm(w http.ResponseWriter, r *http.Request) {
         </tr>
     </table>
 </body>
-</html>`)
+</html>`, zonduuid)
 }
 
 func ShowVersion(w http.ResponseWriter, r *http.Request) {
