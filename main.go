@@ -22,7 +22,7 @@ import (
 	"github.com/rhysd/go-github-selfupdate/selfupdate"
 )
 
-const version = "0.0.15"
+const version = "0.0.16"
 
 func selfUpdate(slug string) error {
 	previous := semver.MustParse(version)
@@ -111,11 +111,11 @@ func DispatchHandler(w http.ResponseWriter, r *http.Request) {
 	// log.Println("DispatchHandler", r.Header.Get("X-Zonduuid"), r.Header.Get("X-Forwarded-For"))
 
 	var uuid = r.Header.Get("X-Zonduuid")
-	var ip = "80.211.11.119" // r.Header.Get("X-Forwarded-For")
+	var ip = r.Header.Get("X-Forwarded-For")
 	if len(uuid) > 0 {
 		var add = IPToWSChannels(ip)
 		log.Println("/internal/sub/tasks,zond:" + uuid + "," + add)
-		w.Header().Add("X-Accel-Redirect", "/internal/sub/tasks/done,"+add)
+		w.Header().Add("X-Accel-Redirect", "/internal/sub/tasks,zond:"+uuid+","+add)
 		w.Header().Add("X-Accel-Buffering", "no")
 	} else {
 		// log.Println("/internal/sub/tasks/done," + ip)
