@@ -12,8 +12,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/kardianos/osext"
 	"syscall"
+
+	"github.com/kardianos/osext"
 
 	"github.com/blang/semver"
 	"github.com/go-redis/redis"
@@ -21,7 +22,7 @@ import (
 	"github.com/rhysd/go-github-selfupdate/selfupdate"
 )
 
-const version = "0.0.14"
+const version = "0.0.15"
 
 func selfUpdate(slug string) error {
 	previous := semver.MustParse(version)
@@ -71,6 +72,17 @@ type Zond struct {
 	Updated int64  `json:"updated"`
 }
 
+// Geodata struct
+type Geodata struct {
+	City                         string  `json:"city"`
+	Country                      string  `json:"country"`
+	CountryCode                  string  `json:"country_code"`
+	Longitude                    float64 `json:"lon"`
+	Latitude                     float64 `json:"lat"`
+	AutonomousSystemNumber       uint    `json:"asn"`
+	AutonomousSystemOrganization string  `json:"provider"`
+}
+
 var port = flag.String("port", "9000", "Port to listen on")
 var serveruuid, _ = uuid.NewV4()
 
@@ -93,6 +105,72 @@ func GetHandler(w http.ResponseWriter, r *http.Request) {
 			http.StatusInternalServerError)
 	}
 	w.Write(jsonBody)
+}
+
+func DispatchHandler(w http.ResponseWriter, r *http.Request) {
+	// log.Println("DispatchHandler", r.Header.Get("X-Zonduuid"), r.Header.Get("X-Forwarded-For"))
+
+	var uuid = r.Header.Get("X-Zonduuid")
+	var ip = "80.211.11.119" // r.Header.Get("X-Forwarded-For")
+	if len(uuid) > 0 {
+		var add = IPToWSChannels(ip)
+		log.Println("/internal/sub/tasks,zond:" + uuid + "," + add)
+		w.Header().Add("X-Accel-Redirect", "/internal/sub/tasks/done,"+add)
+		w.Header().Add("X-Accel-Buffering", "no")
+	} else {
+		// log.Println("/internal/sub/tasks/done," + ip)
+
+		w.Header().Add("X-Accel-Redirect", "/internal/sub/tasks/done,"+ip)
+		w.Header().Add("X-Accel-Buffering", "no")
+	}
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(""))
+}
+
+func IPToWSChannels(ip string) string {
+	url := "http://localhost:9001/?ip=" + ip
+
+	spaceClient := http.Client{
+		Timeout: time.Second * 5, // Maximum of 2 secs
+	}
+
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		log.Println(err)
+	} else {
+		res, getErr := spaceClient.Do(req)
+		if getErr != nil {
+			log.Println(getErr)
+		} else {
+
+			body, readErr := ioutil.ReadAll(res.Body)
+			if readErr != nil {
+				log.Println(readErr)
+			} else {
+
+				geodata := Geodata{}
+				jsonErr := json.Unmarshal(body, &geodata)
+				if jsonErr != nil {
+					log.Println(jsonErr)
+				} else {
+					var result []string
+					result = append(result, "IP:"+ip)
+
+					if geodata.City != "" {
+						result = append(result, "City:"+geodata.City)
+					}
+					if geodata.Country != "" {
+						result = append(result, "Country:"+geodata.Country)
+					}
+					if geodata.AutonomousSystemNumber != 0 {
+						result = append(result, "ASN:"+fmt.Sprint(geodata.AutonomousSystemNumber))
+					}
+					return strings.Join(result[:], ",")
+				}
+			}
+		}
+	}
+	return ""
 }
 
 func ZondCreatetHandler(w http.ResponseWriter, r *http.Request) {
@@ -310,6 +388,7 @@ func main() {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", GetHandler)
+	mux.HandleFunc("/dispatch/", DispatchHandler)
 	mux.HandleFunc("/version", ShowVersion)
 	mux.HandleFunc("/task/create", TaskCreatetHandler)
 	mux.HandleFunc("/task/block", TaskBlockHandler)
