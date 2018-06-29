@@ -22,7 +22,7 @@ import (
 	"github.com/rhysd/go-github-selfupdate/selfupdate"
 )
 
-const version = "0.0.17"
+const version = "0.0.18"
 
 func selfUpdate(slug string) error {
 	previous := semver.MustParse(version)
@@ -122,8 +122,8 @@ func DispatchHandler(w http.ResponseWriter, r *http.Request) {
 	var ip = r.Header.Get("X-Forwarded-For")
 	if len(uuid) > 0 {
 		var add = IPToWSChannels(ip)
-		log.Println("/internal/sub/zond:" + uuid + "," + add)
-		w.Header().Add("X-Accel-Redirect", "/internal/sub/zond:"+uuid+","+add)
+		log.Println("/internal/sub/zond:" + uuid + "," + add + "," + ip)
+		w.Header().Add("X-Accel-Redirect", "/internal/sub/zond:"+uuid+","+add+","+ip)
 		w.Header().Add("X-Accel-Buffering", "no")
 	} else {
 		// log.Println("/internal/sub/tasks/done," + ip)
@@ -139,7 +139,8 @@ func IPToWSChannels(ip string) string {
 	var result []string
 	// result = append(result, "IP:"+ip)
 
-	url := "http://localhost:9001/?ip=" + ip
+	// TODO: receive addr from start args
+	url := "http://127.0.0.1:9001/?ip=" + ip
 
 	spaceClient := http.Client{
 		Timeout: time.Second * 5, // Maximum of 2 secs
@@ -160,6 +161,7 @@ func IPToWSChannels(ip string) string {
 			} else {
 
 				geodata := Geodata{}
+				// log.Println(geodata)
 				jsonErr := json.Unmarshal(body, &geodata)
 				if jsonErr != nil {
 					log.Println(jsonErr)
