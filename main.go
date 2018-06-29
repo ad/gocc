@@ -520,7 +520,7 @@ func ZondPong(w http.ResponseWriter, r *http.Request) {
 func ZondSub(w http.ResponseWriter, r *http.Request) {
 	var uuid = r.Header.Get("X-ZondUuid")
 	if len(uuid) > 0 {
-		log.Println(uuid, "— connected", r)
+		log.Println(uuid, "— connected")
 		client.SAdd("Zond-online", uuid)
 		usersCount, _ := client.SCard("Zond-online").Result()
 		fmt.Printf("Active zonds: %d\n", usersCount)
@@ -545,7 +545,7 @@ func ZondSub(w http.ResponseWriter, r *http.Request) {
 func ZondUnsub(w http.ResponseWriter, r *http.Request) {
 	var uuid = r.Header.Get("X-ZondUuid")
 	if len(uuid) > 0 {
-		log.Println(r.Header.Get("X-ZondUuid"), "— disconnected", r)
+		log.Println(r.Header.Get("X-ZondUuid"), "— disconnected")
 		client.SRem("Zond-online", r.Header.Get("X-ZondUuid"))
 		usersCount, _ := client.SCard("Zond-online").Result()
 		fmt.Printf("Active zonds: %d\n", usersCount)
