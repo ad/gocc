@@ -22,7 +22,7 @@ import (
 	"github.com/rhysd/go-github-selfupdate/selfupdate"
 )
 
-const version = "0.0.16"
+const version = "0.0.17"
 
 func selfUpdate(slug string) error {
 	previous := semver.MustParse(version)
@@ -72,6 +72,14 @@ type Zond struct {
 	Updated int64  `json:"updated"`
 }
 
+type Channels struct {
+	Action    string   `json:"action"`
+	Zonds     []string `json:"zonds"`
+	Countries []string `json:"countries"`
+	Cities    []string `json:"cities"`
+	ASNs      []string `json:"asns"`
+}
+
 // Geodata struct
 type Geodata struct {
 	City                         string  `json:"city"`
@@ -114,13 +122,13 @@ func DispatchHandler(w http.ResponseWriter, r *http.Request) {
 	var ip = r.Header.Get("X-Forwarded-For")
 	if len(uuid) > 0 {
 		var add = IPToWSChannels(ip)
-		log.Println("/internal/sub/tasks,zond:" + uuid + "," + add)
-		w.Header().Add("X-Accel-Redirect", "/internal/sub/tasks,zond:"+uuid+","+add)
+		log.Println("/internal/sub/zond:" + uuid + "," + add)
+		w.Header().Add("X-Accel-Redirect", "/internal/sub/zond:"+uuid+","+add)
 		w.Header().Add("X-Accel-Buffering", "no")
 	} else {
 		// log.Println("/internal/sub/tasks/done," + ip)
 
-		w.Header().Add("X-Accel-Redirect", "/internal/sub/tasks/done,"+ip)
+		w.Header().Add("X-Accel-Redirect", "/internal/sub/destinations,tasks/done,"+ip)
 		w.Header().Add("X-Accel-Buffering", "no")
 	}
 	w.WriteHeader(http.StatusOK)
@@ -128,6 +136,9 @@ func DispatchHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func IPToWSChannels(ip string) string {
+	var result []string
+	// result = append(result, "IP:"+ip)
+
 	url := "http://localhost:9001/?ip=" + ip
 
 	spaceClient := http.Client{
@@ -153,8 +164,6 @@ func IPToWSChannels(ip string) string {
 				if jsonErr != nil {
 					log.Println(jsonErr)
 				} else {
-					var result []string
-					result = append(result, "IP:"+ip)
 
 					if geodata.City != "" {
 						result = append(result, "City:"+geodata.City)
@@ -165,12 +174,12 @@ func IPToWSChannels(ip string) string {
 					if geodata.AutonomousSystemNumber != 0 {
 						result = append(result, "ASN:"+fmt.Sprint(geodata.AutonomousSystemNumber))
 					}
-					return strings.Join(result[:], ",")
 				}
 			}
 		}
 	}
-	return ""
+	result = append(result, "tasks")
+	return strings.Join(result[:], ",")
 }
 
 func ZondCreatetHandler(w http.ResponseWriter, r *http.Request) {
@@ -220,6 +229,27 @@ func TaskCreatetHandler(w http.ResponseWriter, r *http.Request) {
 			"head": true,
 		}
 
+		dest := r.FormValue("dest")
+		destination := "tasks"
+		if len(dest) > 4 && strings.Count(dest, ":") == 2 {
+			target := strings.Join(strings.Split(dest, ":")[2:], ":")
+			if strings.HasPrefix(dest, "zond:uuid:") {
+				test, _ := client.SIsMember("Zond-online", target).Result()
+				if test {
+					destination = "zond:" + target
+				}
+			} else if strings.HasPrefix(dest, "zond:city:") {
+				// FIXME: check if destination is available
+				destination = "City:" + target
+			} else if strings.HasPrefix(dest, "zond:country:") {
+				// FIXME: check if destination is available
+				destination = "Country:" + target
+			} else if strings.HasPrefix(dest, "zond:asn:") {
+				// FIXME: check if destination is available
+				destination = "ASN:" + target
+			}
+		}
+
 		if taskTypes[taskType] {
 			u, _ := uuid.NewV4()
 			var Uuid = u.String()
@@ -236,7 +266,7 @@ func TaskCreatetHandler(w http.ResponseWriter, r *http.Request) {
 
 			client.Set("task/"+Uuid, string(js), 0)
 
-			go post("http://127.0.0.1:80/pub/tasks", string(js))
+			go post("http://127.0.0.1:80/pub/"+destination, string(js))
 
 			log.Println(ip, taskType, Uuid)
 		}
@@ -452,10 +482,15 @@ func checkAlive() {
 				action := Action{Action: "alive", Uuid: Uuid, Created: msec}
 				js, _ := json.Marshal(action)
 				client.Set(zond+"/alive", Uuid, 90*time.Second)
-				go post("http://127.0.0.1:80/pub/zond"+zond, string(js))
+				go post("http://127.0.0.1:80/pub/zond:"+zond, string(js))
 			} else {
 				log.Println(zond, "— removed")
 				client.SRem("Zond-online", zond)
+
+				client.HDel("zond:city", zond)
+				client.HDel("zond:country", zond)
+				client.HDel("zond:asn", zond)
+				getActiveDestinations()
 			}
 		}
 	}
@@ -483,21 +518,97 @@ func ZondPong(w http.ResponseWriter, r *http.Request) {
 }
 
 func ZondSub(w http.ResponseWriter, r *http.Request) {
-	if len(r.Header.Get("X-ZondUuid")) > 0 {
-		log.Println(r.Header.Get("X-ZondUuid"), "— connected")
-		client.SAdd("Zond-online", r.Header.Get("X-ZondUuid"))
+	var uuid = r.Header.Get("X-ZondUuid")
+	if len(uuid) > 0 {
+		log.Println(uuid, "— connected", r)
+		client.SAdd("Zond-online", uuid)
 		usersCount, _ := client.SCard("Zond-online").Result()
 		fmt.Printf("Active zonds: %d\n", usersCount)
+
+		for i := 0; i < 5; i++ {
+			var data = r.Header.Get("X-Channel-Id" + fmt.Sprint(i))
+			if strings.HasPrefix(data, "City") {
+				var city = strings.Join(strings.Split(r.Header.Get("X-Channel-Id"+fmt.Sprint(i)), ":")[1:], ":")
+				client.HSet("zond:city", uuid, city)
+			} else if strings.HasPrefix(data, "Country") {
+				var country = strings.Join(strings.Split(r.Header.Get("X-Channel-Id"+fmt.Sprint(i)), ":")[1:], ":")
+				client.HSet("zond:country", uuid, country)
+			} else if strings.HasPrefix(data, "ASN") {
+				var asn = strings.Join(strings.Split(r.Header.Get("X-Channel-Id"+fmt.Sprint(i)), ":")[1:], ":")
+				client.HSet("zond:asn", uuid, asn)
+			}
+		}
+		getActiveDestinations()
 	}
 }
 
 func ZondUnsub(w http.ResponseWriter, r *http.Request) {
-	if len(r.Header.Get("X-ZondUuid")) > 0 {
-		log.Println(r.Header.Get("X-ZondUuid"), "— disconnected")
+	var uuid = r.Header.Get("X-ZondUuid")
+	if len(uuid) > 0 {
+		log.Println(r.Header.Get("X-ZondUuid"), "— disconnected", r)
 		client.SRem("Zond-online", r.Header.Get("X-ZondUuid"))
 		usersCount, _ := client.SCard("Zond-online").Result()
 		fmt.Printf("Active zonds: %d\n", usersCount)
+
+		for i := 0; i < 5; i++ {
+			var data = r.Header.Get("X-Channel-Id" + fmt.Sprint(i))
+			if strings.HasPrefix(data, "City") {
+				// var city = strings.Join(strings.Split(r.Header.Get("X-Channel-Id"+fmt.Sprint(i)), ":")[1:], ":")
+				client.HDel("zond:city", uuid)
+			} else if strings.HasPrefix(data, "Country") {
+				// var country = strings.Join(strings.Split(r.Header.Get("X-Channel-Id"+fmt.Sprint(i)), ":")[1:], ":")
+				client.HDel("zond:country", uuid)
+			} else if strings.HasPrefix(data, "ASN") {
+				// var asn = strings.Join(strings.Split(r.Header.Get("X-Channel-Id"+fmt.Sprint(i)), ":")[1:], ":")
+				client.HDel("zond:asn", uuid)
+			}
+		}
+		getActiveDestinations()
 	}
+}
+
+func getActiveDestinations() {
+	zonds, _ := client.SMembers("Zond-online").Result()
+	// if len(zonds) > 0 {
+	// 	// for _, zond := range zonds {
+	// }
+
+	cities, _ := client.HVals("zond:city").Result()
+	if len(cities) > 0 {
+		cities = SliceUniqMap(cities)
+	}
+
+	countries, _ := client.HVals("zond:country").Result()
+	if len(countries) > 0 {
+		countries = SliceUniqMap(countries)
+	}
+
+	asns, _ := client.HVals("zond:asn").Result()
+	if len(asns) > 0 {
+		asns = SliceUniqMap(asns)
+	}
+
+	log.Println(zonds, cities, countries, asns)
+
+	channels := Channels{Action: "destinations", Zonds: zonds, Countries: countries, Cities: cities, ASNs: asns}
+	js, _ := json.Marshal(channels)
+	// log.Println(string(js))
+
+	go post("http://127.0.0.1:80/pub/destinations", string(js))
+}
+
+func SliceUniqMap(s []string) []string {
+	seen := make(map[string]struct{}, len(s))
+	j := 0
+	for _, v := range s {
+		if _, ok := seen[v]; ok {
+			continue
+		}
+		seen[v] = struct{}{}
+		s[j] = v
+		j++
+	}
+	return s[:j]
 }
 
 func post(url string, jsonData string) string {
@@ -528,27 +639,44 @@ func ShowCreateForm(w http.ResponseWriter, r *http.Request, zonduuid string) {
 			var event = JSON.parse(message.data);
 			console.log(event);
 
-			var table = document.getElementById("commands");
+			if (event.action == "destinations") {
+				addOptions("zonds", "zond:uuid:", event.zonds)
+				addOptions("asns", "zond:asn:", event.asns)
+				addOptions("countries", "zond:country:", event.countries)
+				addOptions("cities", "zond:city:", event.cities)
+			} else {
+				var table = document.getElementById("commands");
 
-		    var row = table.insertRow(1);
+				var row = table.insertRow(1);
 
-		    var cell1 = row.insertCell(0);
-		    var cell2 = row.insertCell(1);
-		    var cell3 = row.insertCell(2);
-		    var cell4 = row.insertCell(3);
+				var cell1 = row.insertCell(0);
+				var cell2 = row.insertCell(1);
+				var cell3 = row.insertCell(2);
+				var cell4 = row.insertCell(3);
 
-		    var dt = new Date(event.updated).toLocaleString()
-		    cell1.innerHTML = dt;
-		    cell2.innerHTML = event.zond;
-		    cell3.innerHTML = '<span class="action">' + event.action + '</span> <span class="param">' + event.param + '</span>';
-		    cell4.innerHTML = event.result;
+				var dt = new Date(event.updated).toLocaleString()
+				cell1.innerHTML = dt;
+				cell2.innerHTML = event.zond;
+				cell3.innerHTML = '<span class="action">' + event.action + '</span> <span class="param">' + event.param + '</span>';
+				cell4.innerHTML = event.result;
 
-		    cell3.onclick = function () {
-            	createTask(this.querySelector('.action').innerHTML, this.querySelector('.param').innerHTML);
-        	}
+				cell3.onclick = function () {
+					createTask(this.querySelector('.action').innerHTML, this.querySelector('.param').innerHTML);
+				}
+			}
 		};
 
-		function createTask(taskType, taskIp) {
+		function addOptions(destID, prefix, items) {
+			document.getElementById(destID).innerHTML = '';
+			for (i = 0; i < items.length; ++i) {
+				opt = document.createElement('OPTION');
+				opt.textContent = items[i];
+				opt.value = prefix+items[i];
+				document.getElementById(destID).appendChild(opt);
+			}
+		}
+
+		function createTask(dest, taskType, taskIp) {
 		    var xhr = new XMLHttpRequest();
 
 			xhr.open('POST', '/task/create');
@@ -559,7 +687,7 @@ func ShowCreateForm(w http.ResponseWriter, r *http.Request, zonduuid string) {
 			        alert('Request failed.  Returned status of ' + xhr.status);
 			    }
 			};
-			xhr.send(encodeURI('type='+taskType+'&ip='+taskIp));
+			xhr.send(encodeURI('dest='+dest+'&type='+taskType+'&ip='+taskIp));
 
 			return false;
 		}
@@ -593,7 +721,7 @@ func ShowCreateForm(w http.ResponseWriter, r *http.Request, zonduuid string) {
 		}
 		table {
 		    border-collapse: collapse;
-		    width: 100%;
+		    width: 100%%;
 		}
 
 		table, th, td {
@@ -616,7 +744,14 @@ func ShowCreateForm(w http.ResponseWriter, r *http.Request, zonduuid string) {
 </head>
 <body>
     <div style="float: left;">
-        <form method="POST" action="/task/create" onSubmit="return createTask(document.getElementById('type').value, document.getElementById('ip').value)">
+		<form method="POST" action="/task/create" onSubmit="return createTask(document.getElementById('destination').value, document.getElementById('type').value, document.getElementById('ip').value)">
+			<select name="destination" id="destination">
+				<optgroup label="Выберите цель" id=""><option>Любой зонд</option></optgroup>
+				<optgroup label="Страны" id="countries"></optgroup>
+				<optgroup label="Города" id="cities"></optgroup>
+				<optgroup label="ASN" id="asns"></optgroup>
+				<optgroup label="Зонды" id="zonds"></optgroup>
+			</select>
         	<select name="type" id="type">
         		<option value="ping">PING</option>
         		<option value="head">HEAD</option>
