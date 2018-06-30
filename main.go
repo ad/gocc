@@ -20,7 +20,7 @@ import (
 	"github.com/nu7hatch/gouuid"
 )
 
-const version = "0.1.1"
+const version = "0.1.2"
 
 type Action struct {
 	ZondUuid   string `json:"zond"`
@@ -55,6 +55,7 @@ type Channels struct {
 
 var port = flag.String("port", "9000", "Port to listen on")
 var serveruuid, _ = uuid.NewV4()
+var fqdn = utils.FQDN()
 
 var (
 	nsCookieName         = "NSLOGIN"
@@ -63,7 +64,7 @@ var (
 )
 
 func main() {
-	log.Printf("Started version %s", version)
+	log.Printf("Started version %s at %s", version, fqdn)
 
 	go selfupdate.StartSelfupdate("ad/gocc", version)
 
@@ -919,7 +920,7 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 
 			client.Set("user/pass/"+login, hash, 0)
 
-			go mail.SendMail(login, "Your password", "password: "+password, r.URL.Host)
+			go mail.SendMail(login, "Your password", "password: "+password, fqdn)
 
 			var s = securecookie.New(nsCookieHashKey, nil)
 			value := map[string]string{

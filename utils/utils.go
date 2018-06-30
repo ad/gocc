@@ -7,7 +7,9 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"net"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -90,4 +92,33 @@ func RandStr(len int) string {
 	str := base64.StdEncoding.EncodeToString(buff)
 	// Base 64 can be longer than len
 	return str[:len]
+}
+
+// Get Fully Qualified Domain Name
+func FQDN() string {
+	hostname, err := os.Hostname()
+	if err != nil {
+		return "unknown"
+	}
+
+	addrs, err := net.LookupIP(hostname)
+	if err != nil {
+		return hostname
+	}
+
+	for _, addr := range addrs {
+		if ipv4 := addr.To4(); ipv4 != nil {
+			ip, err := ipv4.MarshalText()
+			if err != nil {
+				return hostname
+			}
+			hosts, err := net.LookupAddr(string(ip))
+			if err != nil || len(hosts) == 0 {
+				return hostname
+			}
+			fqdn := hosts[0]
+			return strings.TrimSuffix(fqdn, ".")
+		}
+	}
+	return hostname
 }
