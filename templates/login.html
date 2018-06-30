@@ -1,0 +1,57 @@
+<html>
+
+<head>
+    <title>Control center login</title>
+    <style>
+        body {
+            font-family: 'Open Sans', sans-serif;
+        }
+
+        table {
+            border-collapse: collapse;
+            width: 100%;
+        }
+
+        table,
+        th,
+        td {
+            border: 0;
+        }
+
+        th,
+        td {
+            border-bottom: 1px solid #ddd;
+            text-align: left;
+            vertical-align: top;
+            padding: 15px;
+            text-align: left;
+        }
+
+        tr:nth-child(even) {
+            background-color: #f2f2f2;
+        }
+
+        th {
+            height: 50px;
+        }
+    </style>
+</head>
+
+<body>
+    <div style="float: left;">
+        <form method="POST" action="/login">
+            <input type="text " name="login " placeholder="email">
+            <br>
+            <input type="password " name="password" placeholder="password">
+            <br>
+            <input type="submit " value="Sign in">
+            <br>
+            <span style="color: red">{{.ErrorMessage}}</span>
+        </form>
+        <br>
+        <a href="/register">Register</a> |
+        <a href="/recover">Recover</a>
+    </div>
+</body>
+
+</html>

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"html/template"
 	"io/ioutil"
 	"log"
 	"math/rand"
@@ -20,7 +21,7 @@ import (
 	"github.com/nu7hatch/gouuid"
 )
 
-const version = "0.1.6"
+const version = "0.1.7"
 
 type Action struct {
 	Creator    string `json:"creator"`
@@ -52,6 +53,11 @@ type Channels struct {
 	Countries []string `json:"countries"`
 	Cities    []string `json:"cities"`
 	ASNs      []string `json:"asns"`
+}
+
+type ErrorMessage struct {
+	Text  string
+	Color string
 }
 
 var port = flag.String("port", "9000", "Port to listen on")
@@ -557,159 +563,13 @@ func post(url string, jsonData string) string {
 }
 
 func ShowCreateForm(w http.ResponseWriter, r *http.Request, zonduuid string) {
-	fmt.Fprintf(w, `<html>
-<head>
-    <title>Control center</title>
-    <script>
-		var socket = new WebSocket("ws://" + location.host + "/sub/tasks/done");
+	varmap := map[string]interface{}{
+		"ZondUUID": zonduuid,
+		"Version":  version,
+	}
 
-		socket.onmessage = function(message) {
-			var event = JSON.parse(message.data);
-			console.log(event);
-
-			if (event.action == "destinations") {
-				addOptions("zonds", "zond:uuid:", event.zonds)
-				addOptions("asns", "zond:asn:", event.asns)
-				addOptions("countries", "zond:country:", event.countries)
-				addOptions("cities", "zond:city:", event.cities)
-			} else {
-				var table = document.getElementById("commands");
-
-				var row = table.insertRow(1);
-
-				var cell1 = row.insertCell(0);
-				var cell2 = row.insertCell(1);
-				var cell3 = row.insertCell(2);
-				var cell4 = row.insertCell(3);
-
-				var dt = new Date(event.updated).toLocaleString()
-				cell1.innerHTML = dt;
-				cell2.innerHTML = event.zond;
-				cell3.innerHTML = '<span class="action">' + event.action + '</span> <span class="param">' + event.param + '</span>';
-				cell4.innerHTML = event.result;
-
-				cell3.onclick = function () {
-					createTask(this.querySelector('.action').innerHTML, this.querySelector('.param').innerHTML);
-				}
-			}
-		};
-
-		function addOptions(destID, prefix, items) {
-			document.getElementById(destID).innerHTML = '';
-			for (i = 0; i < items.length; ++i) {
-				opt = document.createElement('OPTION');
-				opt.textContent = items[i];
-				opt.value = prefix+items[i];
-				document.getElementById(destID).appendChild(opt);
-			}
-		}
-
-		function createTask(dest, taskType, taskIp) {
-		    var xhr = new XMLHttpRequest();
-
-			xhr.open('POST', '/task/create');
-			xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
-			xhr.setRequestHeader('X-Requested-With', 'xmlhttprequest');
-			xhr.onload = function() {
-			    if (xhr.status !== 200) {
-			        alert('Request failed.  Returned status of ' + xhr.status);
-			    }
-			};
-			xhr.send(encodeURI('dest='+dest+'&type='+taskType+'&ip='+taskIp));
-
-			return false;
-		}
-
-		function createZond(zondName) {
-		    var xhr = new XMLHttpRequest();
-
-			xhr.open('POST', '/zond/create');
-			xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
-			xhr.setRequestHeader('X-Requested-With', 'xmlhttprequest');
-			xhr.onload = function() {
-			    if (xhr.status !== 200) {
-			        alert('Request failed.  Returned status of ' + xhr.status);
-			    } else {
-			    	data = JSON.parse(xhr.responseText);
-			    	if (data.status == "ok") {
-			    		document.querySelector('#zondUuid').innerText = data.uuid;
-			    	} else {
-			    		document.querySelector('#zondUuid').innerText = data.message;
-			    	}
-			    }
-			};
-			xhr.send(encodeURI('name='+zondName));
-
-			return false;
-		}
-    </script>
-    <style>
-		body {
-		  font-family: 'Open Sans', sans-serif;
-		}
-		table {
-		    border-collapse: collapse;
-		    width: 100%%;
-		}
-
-		table, th, td {
-		    border: 0;
-		}
-	    th, td {
-	    	border-bottom: 1px solid #ddd;
-	    	text-align: left;
-	    	vertical-align: top;
-		    padding: 15px;
-		    text-align: left;
-		}
-		tr:nth-child(even) {
-			background-color: #f2f2f2;
-		}
-		th {
-		    height: 50px;
-		}
-	</style>
-</head>
-<body>
-    <div style="float: left;">
-		<form method="POST" action="/task/create" onSubmit="return createTask(document.getElementById('destination').value, document.getElementById('type').value, document.getElementById('ip').value)">
-			<select name="destination" id="destination">
-				<optgroup label="Выберите цель" id=""><option>Любой зонд</option></optgroup>
-				<optgroup label="Страны" id="countries"></optgroup>
-				<optgroup label="Города" id="cities"></optgroup>
-				<optgroup label="ASN" id="asns"></optgroup>
-				<optgroup label="Зонды" id="zonds"></optgroup>
-			</select>
-        	<select name="type" id="type">
-        		<option value="ping">PING</option>
-        		<option value="head">HEAD</option>
-        	</select>
-            <input type="text" name="ip" id="ip" value="127.0.0.1" placeholder="IP">
-            <input type="submit" value="Do it!">
-        </form>
-    </div>
-    <div style="float: right;">
-        <form method="POST" action="/zond/create" onSubmit="return createZond(document.getElementById('name').value)">
-            <input type="text" name="name" id="name" value="" placeholder="Zond name">
-            <input type="submit" value="Add Zond"> <span id="zondUuid">%[1]s</span>
-        </form>
-    </div>
-
-	<hr style="clear: both;">
-
-    <table border="0" id="commands">
-        <tr>
-        	<th>Date</th>
-        	<th>Executor</th>
-            <th>Command</th>
-            <th>Results</th>
-        </tr>
-    </table>
-    <div style="position: fixed; bottom: 0; right: 0; padding: 5px; font: 9px sans-serif;">
-    	%[2]s
-    </div>
-</body>
-</html>`, zonduuid, version)
+	tmpl := template.Must(template.ParseFiles("templates/dashboard.html"))
+	tmpl.Execute(w, varmap)
 }
 
 func ShowVersion(w http.ResponseWriter, r *http.Request) {
@@ -787,49 +647,11 @@ func UserLoginHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	fmt.Fprintf(w, `<html>
-<head>
-    <title>Control center login</title>
-    <style>
-		body {
-		  font-family: 'Open Sans', sans-serif;
-		}
-		table {
-		    border-collapse: collapse;
-		    width: 100%%;
-		}
-
-		table, th, td {
-		    border: 0;
-		}
-	    th, td {
-	    	border-bottom: 1px solid #ddd;
-	    	text-align: left;
-	    	vertical-align: top;
-		    padding: 15px;
-		    text-align: left;
-		}
-		tr:nth-child(even) {
-			background-color: #f2f2f2;
-		}
-		th {
-		    height: 50px;
-		}
-	</style>
-</head>
-<body>
-    <div style="float: left;">
-		<form method="POST" action="/login"">
-			<input type="text" name="login" placeholder="email"><br>
-			<input type="password" name="password" placeholder="password"><br>
-            <input type="submit" value="Sign in"><br>
-			<span style="color: red">%[1]s</span>
-		</form>
-		<br>
-		<a href="/register">Register</a>
-    </div>
-</body>
-</html>`, errorMessage)
+	varmap := map[string]interface{}{
+		"ErrorMessage": errorMessage,
+	}
+	tmpl := template.Must(template.ParseFiles("templates/login.html"))
+	tmpl.Execute(w, varmap)
 }
 
 func userRegisterHandler(w http.ResponseWriter, r *http.Request) {
@@ -903,48 +725,11 @@ func userRegisterHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	fmt.Fprintf(w, `<html>
-<head>
-    <title>Control center register</title>
-    <style>
-		body {
-		  font-family: 'Open Sans', sans-serif;
-		}
-		table {
-		    border-collapse: collapse;
-		    width: 100%%;
-		}
-
-		table, th, td {
-		    border: 0;
-		}
-	    th, td {
-	    	border-bottom: 1px solid #ddd;
-	    	text-align: left;
-	    	vertical-align: top;
-		    padding: 15px;
-		    text-align: left;
-		}
-		tr:nth-child(even) {
-			background-color: #f2f2f2;
-		}
-		th {
-		    height: 50px;
-		}
-	</style>
-</head>
-<body>
-    <div style="float: left;">
-		<form method="POST" action="/register"">
-			<input type="text" name="email" placeholder="email"><br>
-			<input type="submit" value="Register"><br>
-			<span style="color: red">%[1]s</span>
-        </form>
-		<br>
-		<a href="/login">Login</a> | <a href="/recover">Recover</a> | 
-    </div>
-</body>
-</html>`, errorMessage)
+	varmap := map[string]interface{}{
+		"ErrorMessage": errorMessage,
+	}
+	tmpl := template.Must(template.ParseFiles("templates/register.html"))
+	tmpl.Execute(w, varmap)
 }
 
 func userRecoverHandler(w http.ResponseWriter, r *http.Request) {
@@ -979,48 +764,11 @@ func userRecoverHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	fmt.Fprintf(w, `<html>
-<head>
-    <title>Control center password recovery</title>
-    <style>
-		body {
-		  font-family: 'Open Sans', sans-serif;
-		}
-		table {
-		    border-collapse: collapse;
-		    width: 100%%;
-		}
-
-		table, th, td {
-		    border: 0;
-		}
-	    th, td {
-	    	border-bottom: 1px solid #ddd;
-	    	text-align: left;
-	    	vertical-align: top;
-		    padding: 15px;
-		    text-align: left;
-		}
-		tr:nth-child(even) {
-			background-color: #f2f2f2;
-		}
-		th {
-		    height: 50px;
-		}
-	</style>
-</head>
-<body>
-    <div style="float: left;">
-		<form method="POST" action="/recover"">
-			<input type="text" name="email" placeholder="email"><br>
-			<input type="submit" value="Recover"><br>
-			<span style="color: red">%[1]s</span>
-        </form>
-		<br>
-		<a href="/login">Login</a> | <a href="/register">Register</a>
-    </div>
-</body>
-</html>`, errorMessage)
+	varmap := map[string]interface{}{
+		"ErrorMessage": errorMessage,
+	}
+	tmpl := template.Must(template.ParseFiles("templates/password_recovery.html"))
+	tmpl.Execute(w, varmap)
 }
 
 func userResetHandler(w http.ResponseWriter, r *http.Request) {
@@ -1048,7 +796,7 @@ func userResetHandler(w http.ResponseWriter, r *http.Request) {
 
 				client.Set("user/pass/"+login, hash, 0)
 
-				go mail.SendMail(login, "Your newpassword", "password: "+password, fqdn)
+				go mail.SendMail(login, "Your new password", "password: "+password, fqdn)
 
 				var s = securecookie.New(nsCookieHashKey, nil)
 				value := map[string]string{

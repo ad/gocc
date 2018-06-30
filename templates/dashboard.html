@@ -1,0 +1,166 @@
+<html>
+
+<head>
+    <title>Control center</title>
+    <script>
+        var socket = new WebSocket("ws://" + location.host + "/sub/tasks/done");
+
+        socket.onmessage = function (message) {
+            var event = JSON.parse(message.data);
+            console.log(event);
+
+            if (event.action == "destinations") {
+                addOptions("zonds", "zond:uuid:", event.zonds)
+                addOptions("asns", "zond:asn:", event.asns)
+                addOptions("countries", "zond:country:", event.countries)
+                addOptions("cities", "zond:city:", event.cities)
+            } else {
+                var table = document.getElementById("commands");
+
+                var row = table.insertRow(1);
+
+                var cell1 = row.insertCell(0);
+                var cell2 = row.insertCell(1);
+                var cell3 = row.insertCell(2);
+                var cell4 = row.insertCell(3);
+
+                var dt = new Date(event.updated).toLocaleString()
+                cell1.innerHTML = dt;
+                cell2.innerHTML = event.zond;
+                cell3.innerHTML = '<span class="action">' + event.action + '</span> <span class="param">' + event.param + '</span>';
+                cell4.innerHTML = event.result;
+
+                cell3.onclick = function () {
+                    createTask(this.querySelector('.action').innerHTML, this.querySelector('.param').innerHTML);
+                }
+            }
+        };
+
+        function addOptions(destID, prefix, items) {
+            document.getElementById(destID).innerHTML = '';
+            for (i = 0; i < items.length; ++i) {
+                opt = document.createElement('OPTION');
+                opt.textContent = items[i];
+                opt.value = prefix + items[i];
+                document.getElementById(destID).appendChild(opt);
+            }
+        }
+
+        function createTask(dest, taskType, taskIp) {
+            var xhr = new XMLHttpRequest();
+
+            xhr.open('POST', '/task/create');
+            xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+            xhr.setRequestHeader('X-Requested-With', 'xmlhttprequest');
+            xhr.onload = function () {
+                if (xhr.status !== 200) {
+                    alert('Request failed.  Returned status of ' + xhr.status);
+                }
+            };
+            xhr.send(encodeURI('dest=' + dest + '&type=' + taskType + '&ip=' + taskIp));
+
+            return false;
+        }
+
+        function createZond(zondName) {
+            var xhr = new XMLHttpRequest();
+
+            xhr.open('POST', '/zond/create');
+            xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+            xhr.setRequestHeader('X-Requested-With', 'xmlhttprequest');
+            xhr.onload = function () {
+                if (xhr.status !== 200) {
+                    alert('Request failed.  Returned status of ' + xhr.status);
+                } else {
+                    data = JSON.parse(xhr.responseText);
+                    if (data.status == "ok") {
+                        document.querySelector('#zondUuid').innerText = data.uuid;
+                    } else {
+                        document.querySelector('#zondUuid').innerText = data.message;
+                    }
+                }
+            };
+            xhr.send(encodeURI('name=' + zondName));
+
+            return false;
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Open Sans', sans-serif;
+        }
+
+        table {
+            border-collapse: collapse;
+            width: 100%;
+        }
+
+        table,
+        th,
+        td {
+            border: 0;
+        }
+
+        th,
+        td {
+            border-bottom: 1px solid #ddd;
+            text-align: left;
+            vertical-align: top;
+            padding: 15px;
+            text-align: left;
+        }
+
+        tr:nth-child(even) {
+            background-color: #f2f2f2;
+        }
+
+        th {
+            height: 50px;
+        }
+    </style>
+</head>
+
+<body>
+    <div style="float: left;">
+        <form method="POST" action="/task/create" onSubmit="return createTask(document.getElementById('destination').value, document.getElementById('type').value, document.getElementById('ip').value)">
+            <select name="destination" id="destination">
+                <optgroup label="Выберите цель" id="">
+                    <option>Любой зонд</option>
+                </optgroup>
+                <optgroup label="Страны" id="countries"></optgroup>
+                <optgroup label="Города" id="cities"></optgroup>
+                <optgroup label="ASN" id="asns"></optgroup>
+                <optgroup label="Зонды" id="zonds"></optgroup>
+            </select>
+            <select name="type" id="type">
+                <option value="ping">PING</option>
+                <option value="head">HEAD</option>
+            </select>
+            <input type="text" name="ip" id="ip" value="127.0.0.1" placeholder="IP">
+            <input type="submit" value="Do it!">
+        </form>
+    </div>
+    <div style="float: right;">
+        <form method="POST" action="/zond/create" onSubmit="return createZond(document.getElementById('name').value)">
+            <input type="text" name="name" id="name" value="" placeholder="Zond name">
+            <input type="submit" value="Add Zond">
+            <span id="zondUuid">{{.ZondUUID}}</span>
+        </form>
+    </div>
+
+    <hr style="clear: both;">
+
+    <table border="0" id="commands">
+        <tr>
+            <th>Date</th>
+            <th>Executor</th>
+            <th>Command</th>
+            <th>Results</th>
+        </tr>
+    </table>
+    <div style="position: fixed; bottom: 0; right: 0; padding: 5px; font: 9px sans-serif;">
+        {{.Version}}
+    </div>
+</body>
+
+</html>
