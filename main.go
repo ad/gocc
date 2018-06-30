@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"html/template"
 	"io/ioutil"
 	"log"
 	"math/rand"
@@ -16,12 +15,13 @@ import (
 	"github.com/ad/gocc/mail"
 	"github.com/ad/gocc/selfupdate"
 	"github.com/ad/gocc/utils"
+	"github.com/arschles/go-bindata-html-template"
 	"github.com/go-redis/redis"
 	"github.com/gorilla/securecookie"
 	"github.com/nu7hatch/gouuid"
 )
 
-const version = "0.1.7"
+const version = "0.1.8"
 
 type Action struct {
 	Creator    string `json:"creator"`
@@ -568,7 +568,7 @@ func ShowCreateForm(w http.ResponseWriter, r *http.Request, zonduuid string) {
 		"Version":  version,
 	}
 
-	tmpl := template.Must(template.ParseFiles("templates/dashboard.html"))
+	tmpl, _ := template.New("dashboard", Asset).Parse("dashboard.html")
 	tmpl.Execute(w, varmap)
 }
 
@@ -650,7 +650,7 @@ func UserLoginHandler(w http.ResponseWriter, r *http.Request) {
 	varmap := map[string]interface{}{
 		"ErrorMessage": errorMessage,
 	}
-	tmpl := template.Must(template.ParseFiles("templates/login.html"))
+	tmpl, _ := template.New("login", Asset).Parse("login.html")
 	tmpl.Execute(w, varmap)
 }
 
@@ -728,7 +728,7 @@ func userRegisterHandler(w http.ResponseWriter, r *http.Request) {
 	varmap := map[string]interface{}{
 		"ErrorMessage": errorMessage,
 	}
-	tmpl := template.Must(template.ParseFiles("templates/register.html"))
+	tmpl, _ := template.New("register", Asset).Parse("register.html")
 	tmpl.Execute(w, varmap)
 }
 
@@ -767,7 +767,7 @@ func userRecoverHandler(w http.ResponseWriter, r *http.Request) {
 	varmap := map[string]interface{}{
 		"ErrorMessage": errorMessage,
 	}
-	tmpl := template.Must(template.ParseFiles("templates/password_recovery.html"))
+	tmpl, _ := template.New("password_recovery", Asset).Parse("password_recovery.html")
 	tmpl.Execute(w, varmap)
 }
 
