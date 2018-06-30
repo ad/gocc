@@ -144,9 +144,11 @@ func Normalize(email string) string {
 	email = strings.ToLower(email)
 
 	parts := strings.Split(email, "@")
-	if parts[1] == "gmail.com" || parts[1] == "googlemail.com" {
-		parts[1] = "gmail.com"
-		parts[0] = strings.Split(replacePattern(parts[0], `\.`, ""), "+")[0]
+	if len(parts) == 2 {
+		if parts[1] == "gmail.com" || parts[1] == "googlemail.com" {
+			parts[1] = "gmail.com"
+			parts[0] = strings.Split(replacePattern(parts[0], `\.`, ""), "+")[0]
+		}
 	}
 	return strings.Join(parts, "@")
 }

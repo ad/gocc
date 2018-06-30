@@ -20,7 +20,7 @@ import (
 	"github.com/nu7hatch/gouuid"
 )
 
-const version = "0.1.3"
+const version = "0.1.4"
 
 type Action struct {
 	ZondUuid   string `json:"zond"`
@@ -711,10 +711,73 @@ func UserAuthHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func UserLoginHandler(w http.ResponseWriter, r *http.Request) {
+	var errorMessage = ""
+
 	if r.Method == "POST" {
-		loginHandler(w, r)
-	} else {
-		fmt.Fprintf(w, `<html>
+		login := r.PostFormValue("login")
+		login = strings.TrimSpace(login)
+		login = strings.ToLower(login)
+		if !mail.ValidateEmail(login) {
+			login = ""
+		}
+		password := r.PostFormValue("password")
+		password = strings.TrimSpace(password)
+
+		// var errorMessage = false
+
+		// nothing fancy here, it is just a demo so every user has the same password
+		// and if it doesn't match render the login page and present user with error message
+		if login == "" || password == "" {
+			errorMessage = "no login/pass provided"
+			// var redirectURL = r.URL.Host + "/login"
+			// http.Redirect(w, r, redirectURL, http.StatusFound)
+		} else {
+			hash, _ := client.Get("user/pass/" + login).Result()
+
+			res := utils.CheckPasswordHash(password, hash)
+			if !res {
+				errorMessage = "password incorrect"
+				// var redirectURL = r.URL.Host + "/login"
+				// http.Redirect(w, r, redirectURL, http.StatusFound)
+			} else {
+				var s = securecookie.New(nsCookieHashKey, nil)
+				value := map[string]string{
+					"user": login,
+				}
+
+				// encode username to secure cookie
+				if encoded, err := s.Encode(nsCookieName, value); err == nil {
+					cookie := &http.Cookie{
+						Name:    nsCookieName,
+						Value:   encoded,
+						Domain:  r.URL.Host,
+						Expires: time.Now().AddDate(1, 0, 0),
+						Path:    "/",
+					}
+					http.SetCookie(w, cookie)
+				}
+
+				// after successful login redirect to original destination (if it exists)
+				var redirectURL = r.URL.Host + "/user"
+				if cookie, err := r.Cookie(nsRedirectCookieName); err == nil {
+					redirectURL = cookie.Value
+				}
+				// ... and delete the original destination holder cookie
+				http.SetCookie(w, &http.Cookie{
+					Name:    nsRedirectCookieName,
+					Value:   "deleted",
+					Domain:  r.URL.Host,
+					Expires: time.Now().Add(time.Hour * -24),
+					Path:    "/",
+				})
+
+				http.Redirect(w, r, redirectURL, http.StatusFound)
+				return
+			}
+		}
+	}
+
+	fmt.Fprintf(w, `<html>
 <head>
     <title>Control center login</title>
     <style>
@@ -749,21 +812,84 @@ func UserLoginHandler(w http.ResponseWriter, r *http.Request) {
 		<form method="POST" action="/login"">
 			<input type="text" name="login" placeholder="email"><br>
 			<input type="password" name="password" placeholder="password"><br>
-            <input type="submit" value="Sign in">
+            <input type="submit" value="Sign in"><br>
+			<span style="color: red">%[1]s</span>
 		</form>
 		<br>
 		<a href="/register">Register</a>
     </div>
 </body>
-</html>`)
-	}
+</html>`, errorMessage)
 }
 
 func userRegisterHandler(w http.ResponseWriter, r *http.Request) {
+	var errorMessage = ""
+
 	if r.Method == "POST" {
-		registerHandler(w, r)
-	} else {
-		fmt.Fprintf(w, `<html>
+		login := r.PostFormValue("email")
+		login = mail.Normalize(login)
+		if !mail.Validate(login) {
+			login = ""
+		}
+
+		if login == "" {
+			errorMessage = "wrong email"
+			// var redirectURL = r.URL.Host + "/register"
+			// http.Redirect(w, r, redirectURL, http.StatusFound)
+		} else {
+			hash, _ := client.Get("user/pass/" + login).Result()
+			if hash != "" {
+				errorMessage = "already registered"
+				// var redirectURL = r.URL.Host + "/login"
+				// http.Redirect(w, r, redirectURL, http.StatusFound)
+			} else {
+				password := utils.RandStr(12)
+				hash, _ = utils.HashPassword(password)
+				// log.Println(login, password, hash)
+
+				client.Set("user/pass/"+login, hash, 0)
+
+				go mail.SendMail(login, "Your password", "password: "+password, fqdn)
+
+				var s = securecookie.New(nsCookieHashKey, nil)
+				value := map[string]string{
+					"user": login,
+				}
+
+				// encode username to secure cookie
+				if encoded, err := s.Encode(nsCookieName, value); err == nil {
+					client.Set("user/session/"+encoded, login, 0)
+					cookie := &http.Cookie{
+						Name:    nsCookieName,
+						Value:   encoded,
+						Domain:  r.URL.Host,
+						Expires: time.Now().AddDate(1, 0, 0),
+						Path:    "/",
+					}
+					http.SetCookie(w, cookie)
+				}
+
+				// after successful login redirect to original destination (if it exists)
+				var redirectURL = r.URL.Host + "/user"
+				if cookie, err := r.Cookie(nsRedirectCookieName); err == nil {
+					redirectURL = cookie.Value
+				}
+				// ... and delete the original destination holder cookie
+				http.SetCookie(w, &http.Cookie{
+					Name:    nsRedirectCookieName,
+					Value:   "deleted",
+					Domain:  r.URL.Host,
+					Expires: time.Now().Add(time.Hour * -24),
+					Path:    "/",
+				})
+
+				http.Redirect(w, r, redirectURL, http.StatusFound)
+				return
+			}
+		}
+	}
+
+	fmt.Fprintf(w, `<html>
 <head>
     <title>Control center login</title>
     <style>
@@ -797,14 +923,14 @@ func userRegisterHandler(w http.ResponseWriter, r *http.Request) {
     <div style="float: left;">
 		<form method="POST" action="/register"">
 			<input type="text" name="email" placeholder="email"><br>
-            <input type="submit" value="register">
+			<input type="submit" value="register"><br>
+			<span style="color: red">%[1]s</span>
         </form>
 		<br>
 		<a href="/login">Login</a>
     </div>
 </body>
-</html>`)
-	}
+</html>`, errorMessage)
 }
 
 func userInfoHandler(w http.ResponseWriter, r *http.Request) {
@@ -829,132 +955,4 @@ func authHandler(w http.ResponseWriter, r *http.Request) {
 
 	// otherwise return HTTP 401 status code
 	http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
-}
-
-func loginHandler(w http.ResponseWriter, r *http.Request) {
-	login := r.PostFormValue("login")
-	login = strings.TrimSpace(login)
-	login = strings.ToLower(login)
-	if !mail.ValidateEmail(login) {
-		login = ""
-	}
-	password := r.PostFormValue("password")
-	password = strings.TrimSpace(password)
-
-	// var errorMessage = false
-
-	// nothing fancy here, it is just a demo so every user has the same password
-	// and if it doesn't match render the login page and present user with error message
-	if login == "" || password == "" {
-		log.Println("no login/pass provided")
-		var redirectURL = r.URL.Host + "/login"
-		http.Redirect(w, r, redirectURL, http.StatusFound)
-		// errorMessage = true
-		// render.HTML(w, http.StatusOK, "index", errorMessage)
-	} else {
-		hash, _ := client.Get("user/pass/" + login).Result()
-
-		res := utils.CheckPasswordHash(password, hash)
-		if !res {
-			log.Println("password incorrect")
-			var redirectURL = r.URL.Host + "/login"
-			http.Redirect(w, r, redirectURL, http.StatusFound)
-		} else {
-			var s = securecookie.New(nsCookieHashKey, nil)
-			value := map[string]string{
-				"user": login,
-			}
-
-			// encode username to secure cookie
-			if encoded, err := s.Encode(nsCookieName, value); err == nil {
-				cookie := &http.Cookie{
-					Name:    nsCookieName,
-					Value:   encoded,
-					Domain:  r.URL.Host,
-					Expires: time.Now().AddDate(1, 0, 0),
-					Path:    "/",
-				}
-				http.SetCookie(w, cookie)
-			}
-
-			// after successful login redirect to original destination (if it exists)
-			var redirectURL = r.URL.Host + "/user"
-			if cookie, err := r.Cookie(nsRedirectCookieName); err == nil {
-				redirectURL = cookie.Value
-			}
-			// ... and delete the original destination holder cookie
-			http.SetCookie(w, &http.Cookie{
-				Name:    nsRedirectCookieName,
-				Value:   "deleted",
-				Domain:  r.URL.Host,
-				Expires: time.Now().Add(time.Hour * -24),
-				Path:    "/",
-			})
-
-			http.Redirect(w, r, redirectURL, http.StatusFound)
-		}
-	}
-}
-
-func registerHandler(w http.ResponseWriter, r *http.Request) {
-	login := r.PostFormValue("email")
-	login = mail.Normalize(login)
-	if !mail.Validate(login) {
-		login = ""
-	}
-
-	if login == "" {
-		log.Println("no login/pass provided")
-		var redirectURL = r.URL.Host + "/register"
-		http.Redirect(w, r, redirectURL, http.StatusFound)
-	} else {
-		hash, _ := client.Get("user/pass/" + login).Result()
-		if hash != "" {
-			log.Println("already registered")
-			var redirectURL = r.URL.Host + "/login"
-			http.Redirect(w, r, redirectURL, http.StatusFound)
-		} else {
-			password := utils.RandStr(12)
-			hash, _ = utils.HashPassword(password)
-			// log.Println(login, password, hash)
-
-			client.Set("user/pass/"+login, hash, 0)
-
-			go mail.SendMail(login, "Your password", "password: "+password, fqdn)
-
-			var s = securecookie.New(nsCookieHashKey, nil)
-			value := map[string]string{
-				"user": login,
-			}
-
-			// encode username to secure cookie
-			if encoded, err := s.Encode(nsCookieName, value); err == nil {
-				client.Set("user/session/"+encoded, login, 0)
-				cookie := &http.Cookie{
-					Name:    nsCookieName,
-					Value:   encoded,
-					Domain:  r.URL.Host,
-					Expires: time.Now().AddDate(1, 0, 0),
-					Path:    "/",
-				}
-				http.SetCookie(w, cookie)
-			}
-
-			// after successful login redirect to original destination (if it exists)
-			var redirectURL = r.URL.Host + "/user"
-			if cookie, err := r.Cookie(nsRedirectCookieName); err == nil {
-				redirectURL = cookie.Value
-			}
-			// ... and delete the original destination holder cookie
-			http.SetCookie(w, &http.Cookie{
-				Name:    nsRedirectCookieName,
-				Value:   "deleted",
-				Domain:  r.URL.Host,
-				Expires: time.Now().Add(time.Hour * -24),
-				Path:    "/",
-			})
-
-			http.Redirect(w, r, redirectURL, http.StatusFound)
-		}
-	}
 }

@@ -13,7 +13,7 @@ import (
 )
 
 func StartSelfupdate(slug string, version string) {
-	selfUpdateTicker := time.NewTicker(10 * time.Minute)
+	selfUpdateTicker := time.NewTicker(5 * time.Minute)
 	go func(selfUpdateTicker *time.Ticker) {
 		for {
 			select {
