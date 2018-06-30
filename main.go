@@ -20,7 +20,7 @@ import (
 	"github.com/nu7hatch/gouuid"
 )
 
-const version = "0.1.4"
+const version = "0.1.5"
 
 type Action struct {
 	Creator    string `json:"creator"`
@@ -104,6 +104,8 @@ func main() {
 	mux.HandleFunc("/zond/unsub", ZondUnsub)
 	mux.HandleFunc("/user", userInfoHandler)
 	mux.HandleFunc("/user/auth", UserAuthHandler)
+	mux.HandleFunc("/recover", userRecoverHandler)
+	mux.HandleFunc("/reset", userResetHandler)
 	mux.HandleFunc("/login", UserLoginHandler)
 	mux.HandleFunc("/register", userRegisterHandler)
 	mux.HandleFunc("/auth", authHandler)
@@ -903,7 +905,7 @@ func userRegisterHandler(w http.ResponseWriter, r *http.Request) {
 
 	fmt.Fprintf(w, `<html>
 <head>
-    <title>Control center login</title>
+    <title>Control center register</title>
     <style>
 		body {
 		  font-family: 'Open Sans', sans-serif;
@@ -935,14 +937,150 @@ func userRegisterHandler(w http.ResponseWriter, r *http.Request) {
     <div style="float: left;">
 		<form method="POST" action="/register"">
 			<input type="text" name="email" placeholder="email"><br>
-			<input type="submit" value="register"><br>
+			<input type="submit" value="Register"><br>
 			<span style="color: red">%[1]s</span>
         </form>
 		<br>
-		<a href="/login">Login</a>
+		<a href="/login">Login</a> | <a href="/recover">Recover</a> | 
     </div>
 </body>
 </html>`, errorMessage)
+}
+
+func userRecoverHandler(w http.ResponseWriter, r *http.Request) {
+	var errorMessage = ""
+
+	if r.Method == "POST" {
+		login := r.PostFormValue("email")
+		login = mail.Normalize(login)
+		if !mail.Validate(login) {
+			login = ""
+		}
+
+		if login == "" {
+			errorMessage = "wrong email"
+			// var redirectURL = r.URL.Host + "/register"
+			// http.Redirect(w, r, redirectURL, http.StatusFound)
+		} else {
+			hash, _ := client.Get("user/pass/" + login).Result()
+			if hash == "" {
+				errorMessage = "user not found"
+			} else {
+				password := utils.RandStr(32)
+				hash, _ = utils.HashPassword(password)
+				// log.Println(login, password, hash)
+
+				client.Set("user/recover/"+login, hash, 0)
+
+				go mail.SendMail(login, "Reset password", `<a href="http://`+fqdn+`/reset?hash=`+password+`&email=`+login+`">Click to reset</a>`, fqdn)
+
+				errorMessage = "Email with recovery link sent"
+			}
+		}
+	}
+
+	fmt.Fprintf(w, `<html>
+<head>
+    <title>Control center password recovery</title>
+    <style>
+		body {
+		  font-family: 'Open Sans', sans-serif;
+		}
+		table {
+		    border-collapse: collapse;
+		    width: 100%%;
+		}
+
+		table, th, td {
+		    border: 0;
+		}
+	    th, td {
+	    	border-bottom: 1px solid #ddd;
+	    	text-align: left;
+	    	vertical-align: top;
+		    padding: 15px;
+		    text-align: left;
+		}
+		tr:nth-child(even) {
+			background-color: #f2f2f2;
+		}
+		th {
+		    height: 50px;
+		}
+	</style>
+</head>
+<body>
+    <div style="float: left;">
+		<form method="POST" action="/recover"">
+			<input type="text" name="email" placeholder="email"><br>
+			<input type="submit" value="Recover"><br>
+			<span style="color: red">%[1]s</span>
+        </form>
+		<br>
+		<a href="/login">Login</a> | <a href="/register">Register</a>
+    </div>
+</body>
+</html>`, errorMessage)
+}
+
+func userResetHandler(w http.ResponseWriter, r *http.Request) {
+	var redirectURL = r.URL.Host + "/user"
+
+	password := r.FormValue("hash")
+	password = strings.Replace(password, " ", "+", -1)
+	login := r.FormValue("email")
+	login = mail.Normalize(login)
+	if !mail.Validate(login) {
+		login = ""
+	}
+
+	if login != "" {
+		hash, _ := client.Get("user/recover/" + login).Result()
+		if hash != "" {
+			res := utils.CheckPasswordHash(password, hash)
+			if !res {
+				log.Println("hash mistmatched", password, login)
+			}
+			if res {
+				password = utils.RandStr(12)
+				hash, _ = utils.HashPassword(password)
+				// log.Println(login, password, hash)
+
+				client.Set("user/pass/"+login, hash, 0)
+
+				go mail.SendMail(login, "Your newpassword", "password: "+password, fqdn)
+
+				var s = securecookie.New(nsCookieHashKey, nil)
+				value := map[string]string{
+					"user": login,
+				}
+
+				// encode username to secure cookie
+				if encoded, err := s.Encode(nsCookieName, value); err == nil {
+					client.Set("user/session/"+encoded, login, 0)
+					cookie := &http.Cookie{
+						Name:    nsCookieName,
+						Value:   encoded,
+						Domain:  r.URL.Host,
+						Expires: time.Now().AddDate(1, 0, 0),
+						Path:    "/",
+					}
+					http.SetCookie(w, cookie)
+				}
+
+				// ... and delete the original destination holder cookie
+				http.SetCookie(w, &http.Cookie{
+					Name:    nsRedirectCookieName,
+					Value:   "deleted",
+					Domain:  r.URL.Host,
+					Expires: time.Now().Add(time.Hour * -24),
+					Path:    "/",
+				})
+			}
+		}
+	}
+
+	http.Redirect(w, r, redirectURL, http.StatusFound)
 }
 
 func userInfoHandler(w http.ResponseWriter, r *http.Request) {

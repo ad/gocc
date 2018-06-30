@@ -5,7 +5,6 @@ Redis
 Postfix
 
 # TODO
-- users registration + logout + recover pass
 - repeatable tasks
 - check if zond-uuid is registered and active
 - break code to packages
