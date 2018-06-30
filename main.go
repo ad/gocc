@@ -20,7 +20,7 @@ import (
 	"github.com/nu7hatch/gouuid"
 )
 
-const version = "0.1.5"
+const version = "0.1.6"
 
 type Action struct {
 	Creator    string `json:"creator"`
@@ -243,7 +243,7 @@ func TaskCreatetHandler(w http.ResponseWriter, r *http.Request) {
 			if userUuid == "" {
 				u, _ := uuid.NewV4()
 				userUuid = u.String()
-				client.Set("user/uuid/"+r.Header.Get("X-Forwarded-User"), userUuid, 0)
+				client.Set(fmt.Sprintf("user/uuid/%s", r.Header.Get("X-Forwarded-User")), userUuid, 0)
 			}
 
 			action := Action{Action: taskType, Param: ip, Uuid: Uuid, Created: msec, Creator: userUuid}
