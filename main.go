@@ -7,47 +7,20 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"math/rand"
 	"net/http"
-	"os"
 	"strings"
 	"time"
 
-	"syscall"
-
-	"github.com/kardianos/osext"
-
-	"github.com/blang/semver"
+	"./mail"
+	"./selfupdate"
+	"./utils"
 	"github.com/go-redis/redis"
+	"github.com/gorilla/securecookie"
 	"github.com/nu7hatch/gouuid"
-	"github.com/rhysd/go-github-selfupdate/selfupdate"
 )
 
-const version = "0.0.18"
-
-func selfUpdate(slug string) error {
-	previous := semver.MustParse(version)
-	latest, err := selfupdate.UpdateSelf(previous, slug)
-	if err != nil {
-		return err
-	}
-
-	if previous.Equals(latest.Version) {
-		// fmt.Println("Current binary is the latest version", version)
-	} else {
-		fmt.Println("Update successfully done to version", latest.Version)
-		fmt.Println("Release note:\n", latest.ReleaseNotes)
-		file, err := osext.Executable()
-		if err != nil {
-			return err
-		}
-		err = syscall.Exec(file, os.Args, os.Environ())
-		if err != nil {
-			log.Fatal(err)
-		}
-	}
-
-	return nil
-}
+const version = "0.1.0"
 
 type Action struct {
 	ZondUuid   string `json:"zond"`
@@ -55,7 +28,7 @@ type Action struct {
 	Param      string `json:"param"`
 	Result     string `json:"result"`
 	Uuid       string `json:"uuid"`
-	ParentUuid string `json:"parent"`
+	ParentUUID string `json:"parent"`
 	Created    int64  `json:"created"`
 	Updated    int64  `json:"updated"`
 }
@@ -80,19 +53,67 @@ type Channels struct {
 	ASNs      []string `json:"asns"`
 }
 
-// Geodata struct
-type Geodata struct {
-	City                         string  `json:"city"`
-	Country                      string  `json:"country"`
-	CountryCode                  string  `json:"country_code"`
-	Longitude                    float64 `json:"lon"`
-	Latitude                     float64 `json:"lat"`
-	AutonomousSystemNumber       uint    `json:"asn"`
-	AutonomousSystemOrganization string  `json:"provider"`
-}
-
 var port = flag.String("port", "9000", "Port to listen on")
 var serveruuid, _ = uuid.NewV4()
+
+var (
+	nsCookieName         = "NSLOGIN"
+	nsCookieHashKey      = []byte("SECURE_COOKIE_HASH_KEY")
+	nsRedirectCookieName = "NSREDIRECT"
+)
+
+func main() {
+	log.Printf("Started version %s", version)
+
+	go selfupdate.StartSelfupdate("ad/gocc", version)
+
+	resetProcessingTicker := time.NewTicker(60 * time.Second)
+	go func(resetProcessingTicker *time.Ticker) {
+		for {
+			select {
+			case <-resetProcessingTicker.C:
+				resetProcessing()
+			}
+		}
+	}(resetProcessingTicker)
+
+	checkAliveTicker := time.NewTicker(60 * time.Second)
+	go func(checkAliveTicker *time.Ticker) {
+		for {
+			select {
+			case <-checkAliveTicker.C:
+				checkAlive()
+			}
+		}
+	}(checkAliveTicker)
+
+	go resendOffline()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", GetHandler)
+	mux.HandleFunc("/dispatch/", DispatchHandler)
+	mux.HandleFunc("/version", ShowVersion)
+	mux.HandleFunc("/task/create", TaskCreatetHandler)
+	mux.HandleFunc("/zond/task/block", TaskBlockHandler)
+	mux.HandleFunc("/zond/task/result", TaskResultHandler)
+	mux.HandleFunc("/zond/pong", ZondPong)
+	mux.HandleFunc("/zond/create", ZondCreatetHandler)
+	mux.HandleFunc("/zond/sub", ZondSub)
+	mux.HandleFunc("/zond/unsub", ZondUnsub)
+	mux.HandleFunc("/user", userInfoHandler)
+	mux.HandleFunc("/user/auth", UserAuthHandler)
+	mux.HandleFunc("/login", UserLoginHandler)
+	mux.HandleFunc("/register", userRegisterHandler)
+	mux.HandleFunc("/auth", authHandler)
+
+	log.Printf("listening on port %s", *port)
+	log.Fatal(http.ListenAndServe("127.0.0.1:"+*port, mux))
+}
+func init() {
+	log.SetFlags(log.Lmicroseconds | log.Lshortfile)
+	flag.Parse()
+	rand.Seed(time.Now().UnixNano())
+}
 
 var client = redis.NewClient(&redis.Options{
 	Addr:     "localhost:6379",
@@ -121,7 +142,7 @@ func DispatchHandler(w http.ResponseWriter, r *http.Request) {
 	var uuid = r.Header.Get("X-Zonduuid")
 	var ip = r.Header.Get("X-Forwarded-For")
 	if len(uuid) > 0 {
-		var add = IPToWSChannels(ip)
+		var add = utils.IPToWSChannels(ip)
 		log.Println("/internal/sub/zond:" + uuid + "," + add + "," + ip)
 		w.Header().Add("X-Accel-Redirect", "/internal/sub/zond:"+uuid+","+add+","+ip)
 		w.Header().Add("X-Accel-Buffering", "no")
@@ -133,55 +154,6 @@ func DispatchHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte(""))
-}
-
-func IPToWSChannels(ip string) string {
-	var result []string
-	// result = append(result, "IP:"+ip)
-
-	// TODO: receive addr from start args
-	url := "http://127.0.0.1:9001/?ip=" + ip
-
-	spaceClient := http.Client{
-		Timeout: time.Second * 5, // Maximum of 2 secs
-	}
-
-	req, err := http.NewRequest(http.MethodGet, url, nil)
-	if err != nil {
-		log.Println(err)
-	} else {
-		res, getErr := spaceClient.Do(req)
-		if getErr != nil {
-			log.Println(getErr)
-		} else {
-
-			body, readErr := ioutil.ReadAll(res.Body)
-			if readErr != nil {
-				log.Println(readErr)
-			} else {
-
-				geodata := Geodata{}
-				// log.Println(geodata)
-				jsonErr := json.Unmarshal(body, &geodata)
-				if jsonErr != nil {
-					log.Println(jsonErr)
-				} else {
-
-					if geodata.City != "" {
-						result = append(result, "City:"+geodata.City)
-					}
-					if geodata.Country != "" {
-						result = append(result, "Country:"+geodata.Country)
-					}
-					if geodata.AutonomousSystemNumber != 0 {
-						result = append(result, "ASN:"+fmt.Sprint(geodata.AutonomousSystemNumber))
-					}
-				}
-			}
-		}
-	}
-	result = append(result, "tasks")
-	return strings.Join(result[:], ",")
 }
 
 func ZondCreatetHandler(w http.ResponseWriter, r *http.Request) {
@@ -375,65 +347,6 @@ func TaskResultHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func init() {
-	log.SetFlags(log.Lmicroseconds | log.Lshortfile)
-	flag.Parse()
-}
-
-func main() {
-	log.Printf("Started version %s", version)
-
-	selfUpdateTicker := time.NewTicker(10 * time.Minute)
-	go func(selfUpdateTicker *time.Ticker) {
-		for {
-			select {
-			case <-selfUpdateTicker.C:
-				if err := selfUpdate("ad/gocc"); err != nil {
-					fmt.Fprintln(os.Stderr, err)
-					// os.Exit(1)
-				}
-			}
-		}
-	}(selfUpdateTicker)
-
-	resetProcessingTicker := time.NewTicker(60 * time.Second)
-	go func(resetProcessingTicker *time.Ticker) {
-		for {
-			select {
-			case <-resetProcessingTicker.C:
-				resetProcessing()
-			}
-		}
-	}(resetProcessingTicker)
-
-	checkAliveTicker := time.NewTicker(60 * time.Second)
-	go func(checkAliveTicker *time.Ticker) {
-		for {
-			select {
-			case <-checkAliveTicker.C:
-				checkAlive()
-			}
-		}
-	}(checkAliveTicker)
-
-	go resendOffline()
-
-	mux := http.NewServeMux()
-	mux.HandleFunc("/", GetHandler)
-	mux.HandleFunc("/dispatch/", DispatchHandler)
-	mux.HandleFunc("/version", ShowVersion)
-	mux.HandleFunc("/task/create", TaskCreatetHandler)
-	mux.HandleFunc("/task/block", TaskBlockHandler)
-	mux.HandleFunc("/task/result", TaskResultHandler)
-	mux.HandleFunc("/zond/pong", ZondPong)
-	mux.HandleFunc("/zond/create", ZondCreatetHandler)
-	mux.HandleFunc("/zond/sub", ZondSub)
-	mux.HandleFunc("/zond/unsub", ZondUnsub)
-
-	log.Printf("listening on port %s", *port)
-	log.Fatal(http.ListenAndServe("127.0.0.1:"+*port, mux))
-}
-
 func resendOffline() {
 	tasks, _ := client.SMembers("tasks-new").Result()
 	log.Println("active tasks", tasks)
@@ -461,6 +374,8 @@ func resetProcessing() {
 				client.SRem("tasks-process", task)
 
 				client.SAdd("tasks-new", taskUuid)
+
+				// TODO: respect destination
 
 				js, _ := client.Get("task/" + taskUuid).Result()
 				go post("http://127.0.0.1:80/pub/tasks", string(js))
@@ -788,4 +703,257 @@ func ShowCreateForm(w http.ResponseWriter, r *http.Request, zonduuid string) {
 
 func ShowVersion(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, version)
+}
+
+func UserAuthHandler(w http.ResponseWriter, r *http.Request) {
+	fmt.Fprintf(w, version)
+}
+
+func UserLoginHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method == "POST" {
+		loginHandler(w, r)
+	} else {
+		fmt.Fprintf(w, `<html>
+<head>
+    <title>Control center login</title>
+    <style>
+		body {
+		  font-family: 'Open Sans', sans-serif;
+		}
+		table {
+		    border-collapse: collapse;
+		    width: 100%%;
+		}
+
+		table, th, td {
+		    border: 0;
+		}
+	    th, td {
+	    	border-bottom: 1px solid #ddd;
+	    	text-align: left;
+	    	vertical-align: top;
+		    padding: 15px;
+		    text-align: left;
+		}
+		tr:nth-child(even) {
+			background-color: #f2f2f2;
+		}
+		th {
+		    height: 50px;
+		}
+	</style>
+</head>
+<body>
+    <div style="float: left;">
+		<form method="POST" action="/login"">
+			<input type="text" name="login" placeholder="email"><br>
+			<input type="password" name="password" placeholder="password"><br>
+            <input type="submit" value="Sign in">
+		</form>
+		<br>
+		<a href="/register">Register</a>
+    </div>
+</body>
+</html>`)
+	}
+}
+
+func userRegisterHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method == "POST" {
+		registerHandler(w, r)
+	} else {
+		fmt.Fprintf(w, `<html>
+<head>
+    <title>Control center login</title>
+    <style>
+		body {
+		  font-family: 'Open Sans', sans-serif;
+		}
+		table {
+		    border-collapse: collapse;
+		    width: 100%%;
+		}
+
+		table, th, td {
+		    border: 0;
+		}
+	    th, td {
+	    	border-bottom: 1px solid #ddd;
+	    	text-align: left;
+	    	vertical-align: top;
+		    padding: 15px;
+		    text-align: left;
+		}
+		tr:nth-child(even) {
+			background-color: #f2f2f2;
+		}
+		th {
+		    height: 50px;
+		}
+	</style>
+</head>
+<body>
+    <div style="float: left;">
+		<form method="POST" action="/register"">
+			<input type="text" name="email" placeholder="email"><br>
+            <input type="submit" value="register">
+        </form>
+		<br>
+		<a href="/login">Login</a>
+    </div>
+</body>
+</html>`)
+	}
+}
+
+func userInfoHandler(w http.ResponseWriter, r *http.Request) {
+	fmt.Fprintf(w, r.Header.Get("X-Forwarded-User"))
+}
+
+func authHandler(w http.ResponseWriter, r *http.Request) {
+	var s = securecookie.New(nsCookieHashKey, nil)
+	// get the cookie from the request
+	if cookie, err := r.Cookie(nsCookieName); err == nil {
+		value := make(map[string]string)
+		// try to decode it
+		if err = s.Decode(nsCookieName, cookie.Value, &value); err == nil {
+			// user, _ := client.Get("user/session/"+value["user"]).Result()
+
+			// if if succeeds set X-Forwarded-User header and return HTTP 200 status code
+			w.Header().Add("X-Forwarded-User", value["user"])
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+	}
+
+	// otherwise return HTTP 401 status code
+	http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
+}
+
+func loginHandler(w http.ResponseWriter, r *http.Request) {
+	login := r.PostFormValue("login")
+	login = strings.TrimSpace(login)
+	login = strings.ToLower(login)
+	if !mail.ValidateEmail(login) {
+		login = ""
+	}
+	password := r.PostFormValue("password")
+	password = strings.TrimSpace(password)
+
+	// var errorMessage = false
+
+	// nothing fancy here, it is just a demo so every user has the same password
+	// and if it doesn't match render the login page and present user with error message
+	if login == "" || password == "" {
+		log.Println("no login/pass provided")
+		var redirectURL = r.URL.Host + "/login"
+		http.Redirect(w, r, redirectURL, http.StatusFound)
+		// errorMessage = true
+		// render.HTML(w, http.StatusOK, "index", errorMessage)
+	} else {
+		hash, _ := client.Get("user/pass/" + login).Result()
+
+		res := utils.CheckPasswordHash(password, hash)
+		if !res {
+			log.Println("password incorrect")
+			var redirectURL = r.URL.Host + "/login"
+			http.Redirect(w, r, redirectURL, http.StatusFound)
+		} else {
+			var s = securecookie.New(nsCookieHashKey, nil)
+			value := map[string]string{
+				"user": login,
+			}
+
+			// encode username to secure cookie
+			if encoded, err := s.Encode(nsCookieName, value); err == nil {
+				cookie := &http.Cookie{
+					Name:    nsCookieName,
+					Value:   encoded,
+					Domain:  r.URL.Host,
+					Expires: time.Now().AddDate(1, 0, 0),
+					Path:    "/",
+				}
+				http.SetCookie(w, cookie)
+			}
+
+			// after successful login redirect to original destination (if it exists)
+			var redirectURL = r.URL.Host + "/user"
+			if cookie, err := r.Cookie(nsRedirectCookieName); err == nil {
+				redirectURL = cookie.Value
+			}
+			// ... and delete the original destination holder cookie
+			http.SetCookie(w, &http.Cookie{
+				Name:    nsRedirectCookieName,
+				Value:   "deleted",
+				Domain:  r.URL.Host,
+				Expires: time.Now().Add(time.Hour * -24),
+				Path:    "/",
+			})
+
+			http.Redirect(w, r, redirectURL, http.StatusFound)
+		}
+	}
+}
+
+func registerHandler(w http.ResponseWriter, r *http.Request) {
+	login := r.PostFormValue("email")
+	login = mail.Normalize(login)
+	if !mail.Validate(login) {
+		login = ""
+	}
+
+	if login == "" {
+		log.Println("no login/pass provided")
+		var redirectURL = r.URL.Host + "/register"
+		http.Redirect(w, r, redirectURL, http.StatusFound)
+	} else {
+		hash, _ := client.Get("user/pass/" + login).Result()
+		if hash != "" {
+			log.Println("already registered")
+			var redirectURL = r.URL.Host + "/login"
+			http.Redirect(w, r, redirectURL, http.StatusFound)
+		} else {
+			password := utils.RandStr(12)
+			hash, _ = utils.HashPassword(password)
+			log.Println(login, password, hash)
+
+			client.Set("user/pass/"+login, hash, 0)
+
+			go mail.SendMail(login, "Your password", "password: "+password, r.URL.Host)
+
+			var s = securecookie.New(nsCookieHashKey, nil)
+			value := map[string]string{
+				"user": login,
+			}
+
+			// encode username to secure cookie
+			if encoded, err := s.Encode(nsCookieName, value); err == nil {
+				client.Set("user/session/"+encoded, login, 0)
+				cookie := &http.Cookie{
+					Name:    nsCookieName,
+					Value:   encoded,
+					Domain:  r.URL.Host,
+					Expires: time.Now().AddDate(1, 0, 0),
+					Path:    "/",
+				}
+				http.SetCookie(w, cookie)
+			}
+
+			// after successful login redirect to original destination (if it exists)
+			var redirectURL = r.URL.Host + "/user"
+			if cookie, err := r.Cookie(nsRedirectCookieName); err == nil {
+				redirectURL = cookie.Value
+			}
+			// ... and delete the original destination holder cookie
+			http.SetCookie(w, &http.Cookie{
+				Name:    nsRedirectCookieName,
+				Value:   "deleted",
+				Domain:  r.URL.Host,
+				Expires: time.Now().Add(time.Hour * -24),
+				Path:    "/",
+			})
+
+			http.Redirect(w, r, redirectURL, http.StatusFound)
+		}
+	}
 }
