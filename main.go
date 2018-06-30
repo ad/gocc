@@ -23,6 +23,7 @@ import (
 const version = "0.1.4"
 
 type Action struct {
+	Creator    string `json:"creator"`
 	ZondUuid   string `json:"zond"`
 	Action     string `json:"action"`
 	Param      string `json:"param"`
@@ -236,7 +237,14 @@ func TaskCreatetHandler(w http.ResponseWriter, r *http.Request) {
 			usersCount, _ := client.SCard("tasks-new").Result()
 			log.Println("tasks-new", users, usersCount)
 
-			action := Action{Action: taskType, Param: ip, Uuid: Uuid, Created: msec}
+			userUuid, _ := client.Get("user/uuid/" + r.Header.Get("X-Forwarded-User")).Result()
+			if userUuid == "" {
+				u, _ := uuid.NewV4()
+				userUuid = u.String()
+				client.Set("user/uuid/"+r.Header.Get("X-Forwarded-User"), userUuid, 0)
+			}
+
+			action := Action{Action: taskType, Param: ip, Uuid: Uuid, Created: msec, Creator: userUuid}
 			js, _ := json.Marshal(action)
 
 			client.Set("task/"+Uuid, string(js), 0)
@@ -848,6 +856,10 @@ func userRegisterHandler(w http.ResponseWriter, r *http.Request) {
 				// log.Println(login, password, hash)
 
 				client.Set("user/pass/"+login, hash, 0)
+
+				u, _ := uuid.NewV4()
+				var Uuid = u.String()
+				client.Set("user/uuid/"+login, Uuid, 0)
 
 				go mail.SendMail(login, "Your password", "password: "+password, fqdn)
 
