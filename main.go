@@ -20,7 +20,7 @@ import (
 	"github.com/nu7hatch/gouuid"
 )
 
-const version = "0.1.2"
+const version = "0.1.3"
 
 type Action struct {
 	ZondUuid   string `json:"zond"`
@@ -808,7 +808,7 @@ func userRegisterHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func userInfoHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintf(w, r.Header.Get("X-Forwarded-User"))
+	fmt.Fprintf(w, `%[1]s at %[2]s (%[3]s)`, r.Header.Get("X-Forwarded-User"), fqdn, version)
 }
 
 func authHandler(w http.ResponseWriter, r *http.Request) {
