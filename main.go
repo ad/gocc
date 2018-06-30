@@ -12,9 +12,9 @@ import (
 	"strings"
 	"time"
 
-	"./mail"
-	"./selfupdate"
-	"./utils"
+	"github.com/ad/gocc/mail"
+	"github.com/ad/gocc/selfupdate"
+	"github.com/ad/gocc/utils"
 	"github.com/go-redis/redis"
 	"github.com/gorilla/securecookie"
 	"github.com/nu7hatch/gouuid"
