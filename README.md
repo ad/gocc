@@ -11,3 +11,4 @@ Postfix
 - fix "fixme"
 - do "todo
 - break code to packages
+- notify opened page via ws about cc version update

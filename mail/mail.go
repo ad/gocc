@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/mail"
 	"net/smtp"
+	"os"
 	"regexp"
 	"strings"
 )
@@ -18,6 +19,10 @@ var auth = smtp.PlainAuth("", username, password, host)
 var addr = host + ":" + port
 
 func SendMail(to string, subject string, body string, hostname string) {
+	if hostname == "" {
+		hostname, _ = os.Hostname()
+	}
+
 	fromName := "no-reply@cc"
 	fromEmail := "no-reply@" + hostname
 	toNames := []string{to}
@@ -138,5 +143,15 @@ func Normalize(email string) string {
 	email = strings.TrimRight(email, ".")
 	email = strings.ToLower(email)
 
-	return email
+	parts := strings.Split(email, "@")
+	if parts[1] == "gmail.com" || parts[1] == "googlemail.com" {
+		parts[1] = "gmail.com"
+		parts[0] = strings.Split(replacePattern(parts[0], `\.`, ""), "+")[0]
+	}
+	return strings.Join(parts, "@")
+}
+
+func replacePattern(str, pattern, replace string) string {
+	r, _ := regexp.Compile(pattern)
+	return r.ReplaceAllString(str, replace)
 }

@@ -20,7 +20,7 @@ import (
 	"github.com/nu7hatch/gouuid"
 )
 
-const version = "0.1.0"
+const version = "0.1.1"
 
 type Action struct {
 	ZondUuid   string `json:"zond"`
@@ -915,7 +915,7 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 		} else {
 			password := utils.RandStr(12)
 			hash, _ = utils.HashPassword(password)
-			log.Println(login, password, hash)
+			// log.Println(login, password, hash)
 
 			client.Set("user/pass/"+login, hash, 0)
 
