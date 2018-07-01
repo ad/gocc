@@ -21,7 +21,7 @@ import (
 	"github.com/nu7hatch/gouuid"
 )
 
-const version = "0.1.8"
+const version = "0.1.9"
 
 type Action struct {
 	Creator    string `json:"creator"`
@@ -220,6 +220,7 @@ func TaskCreatetHandler(w http.ResponseWriter, r *http.Request) {
 		taskTypes := map[string]bool{
 			"ping": true,
 			"head": true,
+			"dns":  true,
 		}
 
 		dest := r.FormValue("dest")
