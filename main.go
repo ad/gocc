@@ -41,6 +41,7 @@ type Result struct {
 }
 
 type Zond struct {
+	Creator string `json:"creator"`
 	Uuid    string `json:"uuid"`
 	Name    string `json:"name"`
 	Created int64  `json:"created"`
@@ -180,10 +181,18 @@ func ZondCreatetHandler(w http.ResponseWriter, r *http.Request) {
 
 		client.SAdd("zonds", Uuid)
 
-		zond := Zond{Uuid: Uuid, Name: name, Created: msec}
+		userUuid, _ := client.Get("user/uuid/" + r.Header.Get("X-Forwarded-User")).Result()
+		if userUuid == "" {
+			u, _ := uuid.NewV4()
+			userUuid = u.String()
+			client.Set(fmt.Sprintf("user/uuid/%s", r.Header.Get("X-Forwarded-User")), userUuid, 0)
+		}
+
+		zond := Zond{Uuid: Uuid, Name: name, Created: msec, Creator: userUuid}
 		js, _ := json.Marshal(zond)
 
 		client.Set("zonds/"+Uuid, string(js), 0)
+		client.SAdd("user/zonds/"+userUuid, Uuid)
 
 		log.Println("Zond created", Uuid)
 
