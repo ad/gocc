@@ -265,6 +265,7 @@ func TaskCreatetHandler(w http.ResponseWriter, r *http.Request) {
 			js, _ := json.Marshal(action)
 
 			client.Set("task/"+Uuid, string(js), 0)
+			client.SAdd("user/tasks/"+userUuid, Uuid)
 
 			go post("http://127.0.0.1:80/pub/"+destination, string(js))
 
