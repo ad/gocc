@@ -17,11 +17,12 @@ import (
 	"github.com/ad/gocc/utils"
 	"github.com/arschles/go-bindata-html-template"
 	"github.com/go-redis/redis"
+	"github.com/gorilla/csrf"
 	"github.com/gorilla/securecookie"
 	"github.com/nu7hatch/gouuid"
 )
 
-const version = "0.1.10"
+const version = "0.1.11"
 
 type Action struct {
 	Creator    string `json:"creator"`
@@ -99,6 +100,7 @@ func main() {
 	go resendOffline()
 
 	mux := http.NewServeMux()
+
 	mux.HandleFunc("/", GetHandler)
 	mux.HandleFunc("/dispatch/", DispatchHandler)
 	mux.HandleFunc("/version", ShowVersion)
@@ -117,8 +119,27 @@ func main() {
 	mux.HandleFunc("/register", userRegisterHandler)
 	mux.HandleFunc("/auth", authHandler)
 
+	CSRF := csrf.Protect(
+		[]byte(utils.RandStr(32)),
+		csrf.FieldName("token"),
+		csrf.Secure(false), // NB: REMOVE IN PRODUCTION!
+		csrf.Path("/"),
+	)
+
+	skipCheck := func(h http.Handler) http.Handler {
+		fn := func(w http.ResponseWriter, r *http.Request) {
+			for _, path := range []string{"/zond/task", "/zond/pong"} {
+				if strings.HasPrefix(r.URL.Path, path) {
+					r = csrf.UnsafeSkipCheck(r)
+				}
+			}
+			h.ServeHTTP(w, r)
+		}
+		return http.HandlerFunc(fn)
+	}
+
 	log.Printf("listening on port %s", *port)
-	log.Fatal(http.ListenAndServe("127.0.0.1:"+*port, mux))
+	log.Fatal(http.ListenAndServe("127.0.0.1:"+*port, skipCheck(CSRF(mux))))
 }
 func init() {
 	log.SetFlags(log.Lmicroseconds | log.Lshortfile)
@@ -197,6 +218,7 @@ func ZondCreatetHandler(w http.ResponseWriter, r *http.Request) {
 		log.Println("Zond created", Uuid)
 
 		if r.Header.Get("X-Requested-With") == "xmlhttprequest" {
+			// w.Header().Set("X-CSRF-Token", csrf.Token(r))
 			fmt.Fprintf(w, `{"status": "ok", "uuid": "%s"}`, Uuid)
 		} else {
 			ShowCreateForm(w, r, Uuid)
@@ -273,12 +295,14 @@ func TaskCreatetHandler(w http.ResponseWriter, r *http.Request) {
 
 			log.Println(ip, taskType, Uuid)
 		} else {
+			// w.Header().Set("X-CSRF-Token", csrf.Token(r))
 			fmt.Fprintf(w, `{"status": "error", "error": "wrong task type"}`)
 			return
 		}
 	}
 
 	if r.Header.Get("X-Requested-With") == "xmlhttprequest" {
+		// w.Header().Set("X-CSRF-Token", csrf.Token(r))
 		fmt.Fprintf(w, `{"status": "ok"}`)
 	} else {
 		ShowCreateForm(w, r, "")
@@ -307,13 +331,16 @@ func TaskBlockHandler(w http.ResponseWriter, r *http.Request) {
 					client.SAdd("zond-busy", t.ZondUuid)
 					client.Set(t.ZondUuid+"/"+t.Uuid+"/processing", "1", 60*time.Second)
 					log.Println(t.ZondUuid, `{"status": "ok", "message": "ok"}`)
+					// w.Header().Set("X-CSRF-Token", csrf.Token(r))
 					fmt.Fprintf(w, `{"status": "ok", "message": "ok"}`)
 				} else {
 					log.Println(t.ZondUuid, `{"status": "error", "message": "task not found"}`)
+					// w.Header().Set("X-CSRF-Token", csrf.Token(r))
 					fmt.Fprintf(w, `{"status": "error", "message": "task not found"}`)
 				}
 			} else {
 				log.Println(`{"status": "error", "message": "only one task at time is allowed"}`)
+				// w.Header().Set("X-CSRF-Token", csrf.Token(r))
 				fmt.Fprintf(w, `{"status": "error", "message": "only one task at time is allowed"}`)
 			}
 		}
@@ -341,12 +368,14 @@ func TaskResultHandler(w http.ResponseWriter, r *http.Request) {
 				taskProcessing, err := client.SIsMember("tasks-process", t.ZondUuid+"/"+t.Uuid).Result()
 				if (err != nil) || (taskProcessing != true) {
 					log.Println(`{"status": "error", "message": "task not found"}`)
+					// w.Header().Set("X-CSRF-Token", csrf.Token(r))
 					fmt.Fprintf(w, `{"status": "error", "message": "task not found"}`)
 				} else {
 					count := client.SRem("tasks-process", t.ZondUuid+"/"+t.Uuid)
 					if count.Val() == int64(1) {
 						client.SAdd("tasks-done", t.ZondUuid+"/"+t.Uuid+"/"+t.Result)
 						log.Println(t.ZondUuid, `{"status": "ok", "message": "ok"}`)
+						// w.Header().Set("X-CSRF-Token", csrf.Token(r))
 						fmt.Fprintf(w, `{"status": "ok", "message": "ok"}`)
 
 						js, _ := client.Get("task/" + t.Uuid).Result()
@@ -369,6 +398,7 @@ func TaskResultHandler(w http.ResponseWriter, r *http.Request) {
 						go post("http://127.0.0.1:80/pub/tasks/done", string(jsonBody))
 					} else {
 						log.Println(t.ZondUuid, `{"status": "error", "message": "task not found"}`)
+						// w.Header().Set("X-CSRF-Token", csrf.Token(r))
 						fmt.Fprintf(w, `{"status": "error", "message": "task not found"}`)
 					}
 				}
@@ -460,6 +490,7 @@ func ZondPong(w http.ResponseWriter, r *http.Request) {
 			if t.Uuid == tp {
 				client.Del(t.ZondUuid + "/alive")
 				// log.Print(t.ZondUuid, "Zond pong")
+				// w.Header().Set("X-CSRF-Token", csrf.Token(r))
 				fmt.Fprintf(w, `{"status": "ok"}`)
 			}
 		}
@@ -579,8 +610,9 @@ func post(url string, jsonData string) string {
 
 func ShowCreateForm(w http.ResponseWriter, r *http.Request, zonduuid string) {
 	varmap := map[string]interface{}{
-		"ZondUUID": zonduuid,
-		"Version":  version,
+		"ZondUUID":       zonduuid,
+		"Version":        version,
+		csrf.TemplateTag: csrf.TemplateField(r),
 	}
 
 	tmpl, _ := template.New("dashboard", Asset).Parse("dashboard.html")
@@ -663,7 +695,8 @@ func UserLoginHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	varmap := map[string]interface{}{
-		"ErrorMessage": errorMessage,
+		"ErrorMessage":   errorMessage,
+		csrf.TemplateTag: csrf.TemplateField(r),
 	}
 	tmpl, _ := template.New("login", Asset).Parse("login.html")
 	tmpl.Execute(w, varmap)
@@ -741,7 +774,8 @@ func userRegisterHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	varmap := map[string]interface{}{
-		"ErrorMessage": errorMessage,
+		"ErrorMessage":   errorMessage,
+		csrf.TemplateTag: csrf.TemplateField(r),
 	}
 	tmpl, _ := template.New("register", Asset).Parse("register.html")
 	tmpl.Execute(w, varmap)
@@ -780,7 +814,8 @@ func userRecoverHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	varmap := map[string]interface{}{
-		"ErrorMessage": errorMessage,
+		"ErrorMessage":   errorMessage,
+		csrf.TemplateTag: csrf.TemplateField(r),
 	}
 	tmpl, _ := template.New("password_recovery", Asset).Parse("password_recovery.html")
 	tmpl.Execute(w, varmap)

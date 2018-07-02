@@ -52,6 +52,8 @@
             xhr.open('POST', '/task/create');
             xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
             xhr.setRequestHeader('X-Requested-With', 'xmlhttprequest');
+            xhr.withCredentials = true;
+            xhr.setRequestHeader('X-CSRF-Token', document.querySelector('div#task_create input[name=token]').value);
             xhr.onload = function () {
                 if (xhr.status !== 200) {
                     alert('Request failed.  Returned status of ' + xhr.status);
@@ -68,6 +70,8 @@
             xhr.open('POST', '/zond/create');
             xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
             xhr.setRequestHeader('X-Requested-With', 'xmlhttprequest');
+            xhr.withCredentials = true;
+            xhr.setRequestHeader('X-CSRF-Token', document.querySelector('div#zond_create input[name=token]').value);
             xhr.onload = function () {
                 if (xhr.status !== 200) {
                     alert('Request failed.  Returned status of ' + xhr.status);
@@ -125,8 +129,9 @@
 </head>
 
 <body>
-    <div style="float: left;">
+    <div style="float: left;" id="task_create">
         <form method="POST" action="/task/create" onSubmit="return createTask(document.getElementById('destination').value, document.getElementById('type').value, document.getElementById('ip').value)">
+            {{ .csrfField }}
             <select name="destination" id="destination">
                 <optgroup label="Выберите цель" id="">
                     <option>Любой зонд</option>
@@ -146,8 +151,9 @@
             <input type="submit" value="Do it!">
         </form>
     </div>
-    <div style="float: right;">
+    <div style="float: right;" id="zond_create">
         <form method="POST" action="/zond/create" onSubmit="return createZond(document.getElementById('name').value)">
+            {{ .csrfField }}
             <input type="text" name="name" id="name" value="" placeholder="Zond name">
             <input type="submit" value="Add Zond">
             <span id="zondUuid">{{.ZondUUID}}</span>
