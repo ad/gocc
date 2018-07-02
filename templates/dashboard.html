@@ -28,7 +28,7 @@
                 cell1.innerHTML = dt;
                 cell2.innerHTML = event.zond;
                 cell3.innerHTML = '<span class="action">' + event.action + '</span> <span class="param">' + event.param + '</span>';
-                cell4.innerHTML = event.result;
+                cell4.innerHTML = nl2br(event.result);
 
                 cell3.onclick = function () {
                     createTask(this.querySelector('.action').innerHTML, this.querySelector('.param').innerHTML);
@@ -84,6 +84,10 @@
 
             return false;
         }
+
+        function nl2br(str) {
+            return str.replace(/([^>])\n/g, '$1<br/>');
+        }
     </script>
     <style>
         body {
@@ -135,7 +139,8 @@
             <select name="type" id="type">
                 <option value="ping">PING</option>
                 <option value="head">HEAD</option>
-                <option value="dns">DNS</option>
+                <option value="dns">DNS (host or host-rezolver)</option>
+                <option value="traceroute">Traceroute</option>
             </select>
             <input type="text" name="ip" id="ip" value="127.0.0.1" placeholder="IP">
             <input type="submit" value="Do it!">

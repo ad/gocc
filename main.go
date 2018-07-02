@@ -21,7 +21,7 @@ import (
 	"github.com/nu7hatch/gouuid"
 )
 
-const version = "0.1.9"
+const version = "0.1.10"
 
 type Action struct {
 	Creator    string `json:"creator"`
@@ -218,9 +218,10 @@ func TaskCreatetHandler(w http.ResponseWriter, r *http.Request) {
 
 		taskType := r.FormValue("type")
 		taskTypes := map[string]bool{
-			"ping": true,
-			"head": true,
-			"dns":  true,
+			"ping":       true,
+			"head":       true,
+			"dns":        true,
+			"traceroute": true,
 		}
 
 		dest := r.FormValue("dest")
@@ -271,6 +272,9 @@ func TaskCreatetHandler(w http.ResponseWriter, r *http.Request) {
 			go post("http://127.0.0.1:80/pub/"+destination, string(js))
 
 			log.Println(ip, taskType, Uuid)
+		} else {
+			fmt.Fprintf(w, `{"status": "error", "error": "wrong task type"}`)
+			return
 		}
 	}
 
