@@ -25,7 +25,7 @@ import (
 	"github.com/ulule/limiter/drivers/store/memory"
 )
 
-const version = "0.1.12"
+const version = "0.1.13"
 
 type Action struct {
 	Creator    string `json:"creator"`
@@ -110,7 +110,7 @@ func main() {
 	mux.Handle("/task/create", throttle(time.Minute, 10, http.HandlerFunc(TaskCreatetHandler)))
 	mux.Handle("/zond/task/block", throttle(time.Minute, 60, http.HandlerFunc(TaskBlockHandler)))
 	mux.Handle("/zond/task/result", throttle(time.Minute, 60, http.HandlerFunc(TaskResultHandler)))
-	mux.Handle("/zond/pong", throttle(time.Minute, 2, http.HandlerFunc(ZondPong)))
+	mux.Handle("/zond/pong", throttle(time.Minute, 5, http.HandlerFunc(ZondPong)))
 	mux.Handle("/zond/create", throttle(time.Minute, 60, http.HandlerFunc(ZondCreatetHandler)))
 	mux.Handle("/zond/sub", throttle(time.Minute, 60, http.HandlerFunc(ZondSub)))
 	mux.Handle("/zond/unsub", throttle(time.Minute, 60, http.HandlerFunc(ZondUnsub)))
