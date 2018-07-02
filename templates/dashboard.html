@@ -24,14 +24,14 @@
                 var cell3 = row.insertCell(2);
                 var cell4 = row.insertCell(3);
 
-                var dt = new Date(event.updated).toLocaleString()
+                var dt = new Date(event.updated * 1000).toLocaleString()
                 cell1.innerHTML = dt;
                 cell2.innerHTML = '<span class="dest">' + event.zond + "</span>";
-                cell3.innerHTML = '<span class="action">' + event.action + '</span> <span class="param">' + event.param + '</span>';
+                cell3.innerHTML = '<span class="action">' + event.action + '</span> <span class="param">' + event.param + '</span> <span class="repeat">' + event.repeat + '</span>';
                 cell4.innerHTML = "<pre>" + nl2br(event.result) + "</pre>";
 
                 row.addEventListener("click", function (event) {
-                    createTask(this.querySelector('.dest').innerHTML, this.querySelector('.action').innerHTML, this.querySelector('.param').innerHTML);
+                    createTask(this.querySelector('.dest').innerHTML, this.querySelector('.action').innerHTML, this.querySelector('.param').innerHTML, this.querySelector('.repeat').innerHTML);
                 }, false);
             }
         };
@@ -46,7 +46,7 @@
             }
         }
 
-        function createTask(dest, taskType, taskIp) {
+        function createTask(dest, taskType, taskIp, repeatType) {
             var xhr = new XMLHttpRequest();
 
             xhr.open('POST', '/task/create');
@@ -59,7 +59,7 @@
                     alert('Request failed.  Returned status of ' + xhr.status);
                 }
             };
-            xhr.send(encodeURI('dest=' + dest + '&type=' + taskType + '&ip=' + taskIp));
+            xhr.send(encodeURI('dest=' + dest + '&type=' + taskType + '&ip=' + taskIp + '&repeat=' + repeatType));
 
             return false;
         }
@@ -130,7 +130,7 @@
 
 <body>
     <div style="float: left;" id="task_create">
-        <form method="POST" action="/task/create" onSubmit="return createTask(document.getElementById('destination').value, document.getElementById('type').value, document.getElementById('ip').value)">
+        <form method="POST" action="/task/create" onSubmit="return createTask(document.getElementById('destination').value, document.getElementById('type').value, document.getElementById('ip').value, document.getElementById('repeat').value)">
             {{ .csrfField }}
             <select name="destination" id="destination">
                 <optgroup label="Выберите цель" id="">
@@ -146,6 +146,18 @@
                 <option value="head">HEAD</option>
                 <option value="dns">DNS (host or host-rezolver)</option>
                 <option value="traceroute">Traceroute</option>
+            </select>
+            <select name="repeat" id="repeat">
+                <option value="single">don't repeat</option>
+                <option value="5min">5min</option>
+                <option value="10min">10min</option>
+                <option value="30min">30min</option>
+                <option value="1hour">1hour</option>
+                <option value="3hour">3hour</option>
+                <option value="6hour">6hour</option>
+                <option value="12hour">12hour</option>
+                <option value="1day">1day</option>
+                <option value="1week">1week</option>
             </select>
             <input type="text" name="ip" id="ip" value="127.0.0.1" placeholder="IP">
             <input type="submit" value="Do it!">

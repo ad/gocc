@@ -5,7 +5,6 @@ Redis
 Postfix
 
 # TODO
-- repeatable tasks
 - check if zond-uuid is registered and active
 - break code to packages
 - notify opened page via ws about cc version update

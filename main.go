@@ -9,6 +9,7 @@ import (
 	"log"
 	"math/rand"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -25,7 +26,7 @@ import (
 	"github.com/ulule/limiter/drivers/store/memory"
 )
 
-const version = "0.1.13"
+const version = "0.2.1"
 
 type Action struct {
 	Creator    string `json:"creator"`
@@ -37,6 +38,8 @@ type Action struct {
 	ParentUUID string `json:"parent"`
 	Created    int64  `json:"created"`
 	Updated    int64  `json:"updated"`
+	Target     string `json:"target"`
+	Repeat     string `json:"repeat"`
 }
 
 type Result struct {
@@ -99,6 +102,16 @@ func main() {
 			}
 		}
 	}(checkAliveTicker)
+
+	resendRepeatableTicker := time.NewTicker(60 * time.Second)
+	go func(resendRepeatableTicker *time.Ticker) {
+		for {
+			select {
+			case <-resendRepeatableTicker.C:
+				resendRepeatable()
+			}
+		}
+	}(resendRepeatableTicker)
 
 	go resendOffline()
 
@@ -209,7 +222,7 @@ func ZondCreatetHandler(w http.ResponseWriter, r *http.Request) {
 
 		u, _ := uuid.NewV4()
 		var Uuid = u.String()
-		var msec = time.Now().UnixNano() / 1000000
+		var msec = time.Now().Unix()
 
 		if len(name) == 0 {
 			name = Uuid
@@ -253,14 +266,6 @@ func TaskCreatetHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		taskType := r.FormValue("type")
-		taskTypes := map[string]bool{
-			"ping":       true,
-			"head":       true,
-			"dns":        true,
-			"traceroute": true,
-		}
-
 		dest := r.FormValue("dest")
 		destination := "tasks"
 		if len(dest) > 4 && strings.Count(dest, ":") == 2 {
@@ -282,10 +287,35 @@ func TaskCreatetHandler(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
+		taskType := r.FormValue("type")
+		taskTypes := map[string]bool{
+			"ping":       true,
+			"head":       true,
+			"dns":        true,
+			"traceroute": true,
+		}
+
+		repeatType := r.FormValue("repeat")
+		repeatTypes := map[string]int{
+			"5min":   300,
+			"10min":  600,
+			"30min":  1800,
+			"1hour":  3600,
+			"3hour":  10800,
+			"6hour":  21600,
+			"12hour": 43200,
+			"1day":   86400,
+			"1week":  604800,
+		}
+
+		if repeatTypes[repeatType] <= 0 {
+			repeatType = "single"
+		}
+
 		if taskTypes[taskType] {
 			u, _ := uuid.NewV4()
 			var Uuid = u.String()
-			var msec = time.Now().UnixNano() / 1000000
+			var msec = time.Now().Unix()
 
 			client.SAdd("tasks-new", Uuid)
 
@@ -300,11 +330,19 @@ func TaskCreatetHandler(w http.ResponseWriter, r *http.Request) {
 				client.Set(fmt.Sprintf("user/uuid/%s", r.Header.Get("X-Forwarded-User")), userUuid, 0)
 			}
 
-			action := Action{Action: taskType, Param: ip, Uuid: Uuid, Created: msec, Creator: userUuid}
+			action := Action{Action: taskType, Param: ip, Uuid: Uuid, Created: msec, Creator: userUuid, Target: destination, Repeat: repeatType}
 			js, _ := json.Marshal(action)
 
 			client.Set("task/"+Uuid, string(js), 0)
 			client.SAdd("user/tasks/"+userUuid, Uuid)
+			if repeatType != "single" {
+				t := time.Now()
+				tnew := t.Add(time.Duration(repeatTypes[repeatType]) * time.Second).Unix()
+				t300 := (tnew - (tnew % 300))
+				log.Println("next start will be at ", strconv.FormatInt(t300, 10))
+
+				client.SAdd("tasks-repeatable-"+strconv.FormatInt(t300, 10), string(js))
+			}
 
 			go post("http://127.0.0.1:80/pub/"+destination, string(js))
 
@@ -402,7 +440,7 @@ func TaskResultHandler(w http.ResponseWriter, r *http.Request) {
 						}
 						task.Result = t.Result
 						task.ZondUuid = t.ZondUuid
-						task.Updated = time.Now().UnixNano() / 1000000
+						task.Updated = time.Now().Unix()
 
 						jsonBody, err := json.Marshal(task)
 						if err != nil {
@@ -431,8 +469,64 @@ func resendOffline() {
 	if len(tasks) > 0 {
 		for _, task := range tasks {
 			js, _ := client.Get("task/" + task).Result()
+
+			// TODO: respect destination
+
 			go post("http://127.0.0.1:80/pub/tasks", string(js))
 			log.Println(js)
+		}
+	}
+}
+
+func resendRepeatable() {
+	t := time.Now().Unix()
+	t300 := strconv.FormatInt(t-(t%300), 10) // modulo to nearest 5-minutes interval, like Mon, 02 Jul 2018 19:55:00 GMT
+
+	tasks, _ := client.SMembers("tasks-repeatable-" + t300).Result()
+	log.Println("repeatable tasks", tasks)
+
+	if len(tasks) > 0 {
+		for _, task := range tasks {
+			var action Action
+			err := json.Unmarshal([]byte(task), &action)
+			if err != nil {
+				log.Println(err.Error())
+			} else {
+				action.ParentUUID = action.Uuid
+				u, _ := uuid.NewV4()
+				var Uuid = u.String()
+				action.Uuid = Uuid
+				action.Created = t - (t % 300)
+				client.SAdd("tasks-new", Uuid)
+
+				js, _ := json.Marshal(action)
+
+				client.Set("task/"+Uuid, string(js), 0)
+				client.SAdd("user/tasks/"+action.Creator, Uuid)
+
+				t := time.Now()
+
+				repeatTypes := map[string]int{
+					"5min":   300,
+					"10min":  600,
+					"30min":  1800,
+					"1hour":  3600,
+					"3hour":  10800,
+					"6hour":  21600,
+					"12hour": 43200,
+					"1day":   86400,
+					"1week":  604800,
+				}
+				tnew := t.Add(time.Duration(repeatTypes[action.Repeat]) * time.Second).Unix()
+				t300new := (tnew - (tnew % 300))
+				log.Println("next start will be at ", strconv.FormatInt(t300new, 10))
+
+				client.SAdd("tasks-repeatable-"+strconv.FormatInt(t300new, 10), string(js))
+
+				go post("http://127.0.0.1:80/pub/"+action.Target, string(js))
+
+				client.SRem("tasks-repeatable-"+t300, task)
+			}
 		}
 	}
 }
@@ -472,7 +566,7 @@ func checkAlive() {
 			if tp == "" {
 				u, _ := uuid.NewV4()
 				var Uuid = u.String()
-				var msec = time.Now().UnixNano() / 1000000
+				var msec = time.Now().Unix()
 				action := Action{Action: "alive", Uuid: Uuid, Created: msec}
 				js, _ := json.Marshal(action)
 				client.Set(zond+"/alive", Uuid, 90*time.Second)
@@ -503,6 +597,7 @@ func ZondPong(w http.ResponseWriter, r *http.Request) {
 			if err != nil {
 				log.Println(err.Error())
 			}
+			log.Println("pong from", t.ZondUuid, r.Header.Get("X-Forwarded-For"))
 			tp, _ := client.Get(t.ZondUuid + "/alive").Result()
 			if t.Uuid == tp {
 				client.Del(t.ZondUuid + "/alive")
