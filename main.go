@@ -484,6 +484,7 @@ func checkAlive() {
 				client.HDel("zond:city", zond)
 				client.HDel("zond:country", zond)
 				client.HDel("zond:asn", zond)
+				go delete("http://127.0.0.1:80/pub/zond:" + zond)
 				getActiveDestinations()
 			}
 		}
@@ -493,6 +494,7 @@ func checkAlive() {
 func ZondPong(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "POST" {
 		body, err := ioutil.ReadAll(r.Body)
+
 		if err != nil {
 			http.Error(w, "Error reading request body", http.StatusInternalServerError)
 		} else {
@@ -621,6 +623,19 @@ func post(url string, jsonData string) string {
 	defer resp.Body.Close()
 	body, _ := ioutil.ReadAll(resp.Body)
 	return string(body)
+}
+
+func delete(url string) string {
+	req, err := http.NewRequest("DELETE", url, nil)
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		log.Println(err)
+		return "err"
+	}
+	defer resp.Body.Close()
+	return "ok"
 }
 
 func ShowCreateForm(w http.ResponseWriter, r *http.Request, zonduuid string) {
