@@ -20,9 +20,12 @@ import (
 	"github.com/gorilla/csrf"
 	"github.com/gorilla/securecookie"
 	"github.com/nu7hatch/gouuid"
+	"github.com/ulule/limiter"
+	"github.com/ulule/limiter/drivers/middleware/stdlib"
+	"github.com/ulule/limiter/drivers/store/memory"
 )
 
-const version = "0.1.11"
+const version = "0.1.12"
 
 type Action struct {
 	Creator    string `json:"creator"`
@@ -101,23 +104,23 @@ func main() {
 
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("/", GetHandler)
-	mux.HandleFunc("/dispatch/", DispatchHandler)
-	mux.HandleFunc("/version", ShowVersion)
-	mux.HandleFunc("/task/create", TaskCreatetHandler)
-	mux.HandleFunc("/zond/task/block", TaskBlockHandler)
-	mux.HandleFunc("/zond/task/result", TaskResultHandler)
-	mux.HandleFunc("/zond/pong", ZondPong)
-	mux.HandleFunc("/zond/create", ZondCreatetHandler)
-	mux.HandleFunc("/zond/sub", ZondSub)
-	mux.HandleFunc("/zond/unsub", ZondUnsub)
-	mux.HandleFunc("/user", userInfoHandler)
-	mux.HandleFunc("/user/auth", UserAuthHandler)
-	mux.HandleFunc("/recover", userRecoverHandler)
-	mux.HandleFunc("/reset", userResetHandler)
-	mux.HandleFunc("/login", UserLoginHandler)
-	mux.HandleFunc("/register", userRegisterHandler)
-	mux.HandleFunc("/auth", authHandler)
+	mux.Handle("/", throttle(time.Minute, 60, http.HandlerFunc(GetHandler)))
+	mux.Handle("/dispatch/", throttle(time.Minute, 60, http.HandlerFunc(DispatchHandler)))
+	mux.Handle("/version", throttle(time.Minute, 60, http.HandlerFunc(ShowVersion)))
+	mux.Handle("/task/create", throttle(time.Minute, 10, http.HandlerFunc(TaskCreatetHandler)))
+	mux.Handle("/zond/task/block", throttle(time.Minute, 60, http.HandlerFunc(TaskBlockHandler)))
+	mux.Handle("/zond/task/result", throttle(time.Minute, 60, http.HandlerFunc(TaskResultHandler)))
+	mux.Handle("/zond/pong", throttle(time.Minute, 2, http.HandlerFunc(ZondPong)))
+	mux.Handle("/zond/create", throttle(time.Minute, 60, http.HandlerFunc(ZondCreatetHandler)))
+	mux.Handle("/zond/sub", throttle(time.Minute, 60, http.HandlerFunc(ZondSub)))
+	mux.Handle("/zond/unsub", throttle(time.Minute, 60, http.HandlerFunc(ZondUnsub)))
+	mux.Handle("/user", throttle(time.Minute, 60, http.HandlerFunc(userInfoHandler)))
+	mux.Handle("/user/auth", throttle(time.Minute, 60, http.HandlerFunc(UserAuthHandler)))
+	mux.Handle("/recover", throttle(time.Minute, 3, http.HandlerFunc(userRecoverHandler)))
+	mux.Handle("/reset", throttle(time.Minute, 3, http.HandlerFunc(userResetHandler)))
+	mux.Handle("/login", throttle(time.Minute, 5, http.HandlerFunc(UserLoginHandler)))
+	mux.Handle("/register", throttle(time.Minute, 5, http.HandlerFunc(userRegisterHandler)))
+	mux.Handle("/auth", http.HandlerFunc(authHandler))
 
 	CSRF := csrf.Protect(
 		[]byte(utils.RandStr(32)),
@@ -141,6 +144,18 @@ func main() {
 	log.Printf("listening on port %s", *port)
 	log.Fatal(http.ListenAndServe("127.0.0.1:"+*port, skipCheck(CSRF(mux))))
 }
+
+func throttle(period time.Duration, limit int64, f http.Handler) http.Handler {
+	rateLimitStore := memory.NewStore()
+	rate := limiter.Rate{
+		Period: period,
+		Limit:  limit,
+	}
+	rateLimiter := stdlib.NewMiddleware(limiter.New(rateLimitStore, rate),
+		stdlib.WithForwardHeader(true))
+	return rateLimiter.Handler(f)
+}
+
 func init() {
 	log.SetFlags(log.Lmicroseconds | log.Lshortfile)
 	flag.Parse()
