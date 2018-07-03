@@ -28,7 +28,7 @@ import (
 	"github.com/ulule/limiter/drivers/store/memory"
 )
 
-const version = "0.2.4"
+const version = "0.2.5"
 
 type Action struct {
 	Creator    string `json:"creator"`
@@ -132,12 +132,14 @@ func main() {
 	mux.Handle("/", throttle(time.Minute, 60, http.HandlerFunc(GetHandler)))
 	mux.Handle("/dispatch/", throttle(time.Minute, 60, http.HandlerFunc(DispatchHandler)))
 	mux.Handle("/version", throttle(time.Minute, 60, http.HandlerFunc(ShowVersion)))
-	mux.Handle("/task/create", throttle(time.Minute, 10, http.HandlerFunc(TaskCreatetHandler)))
+	mux.Handle("/task/create", throttle(time.Minute, 10, http.HandlerFunc(TaskCreateHandler)))
 	mux.Handle("/task/my", throttle(time.Minute, 60, http.HandlerFunc(ShowMyTasks)))
+	mux.Handle("/task/repeatable", throttle(time.Minute, 60, http.HandlerFunc(ShowRepeatableTasks)))
+	mux.Handle("/task/repeatable/remove", throttle(time.Minute, 10, http.HandlerFunc(TaskRepeatableRemoveHandler)))
 	mux.Handle("/zond/task/block", throttle(time.Minute, 60, http.HandlerFunc(TaskBlockHandler)))
 	mux.Handle("/zond/task/result", throttle(time.Minute, 60, http.HandlerFunc(TaskResultHandler)))
 	mux.Handle("/zond/pong", throttle(time.Minute, 5, http.HandlerFunc(ZondPong)))
-	mux.Handle("/zond/create", throttle(time.Minute, 60, http.HandlerFunc(ZondCreatetHandler)))
+	mux.Handle("/zond/create", throttle(time.Minute, 60, http.HandlerFunc(ZondCreateHandler)))
 	mux.Handle("/zond/my", throttle(time.Minute, 60, http.HandlerFunc(ShowMyZonds)))
 	mux.Handle("/zond/sub", throttle(time.Minute, 60, http.HandlerFunc(ZondSub)))
 	mux.Handle("/zond/unsub", throttle(time.Minute, 60, http.HandlerFunc(ZondUnsub)))
@@ -230,7 +232,7 @@ func DispatchHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(""))
 }
 
-func ZondCreatetHandler(w http.ResponseWriter, r *http.Request) {
+func ZondCreateHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "POST" {
 		name := r.FormValue("name")
 
@@ -270,7 +272,7 @@ func ZondCreatetHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func TaskCreatetHandler(w http.ResponseWriter, r *http.Request) {
+func TaskCreateHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "POST" {
 		ip := r.FormValue("ip")
 
@@ -548,6 +550,51 @@ func resendRepeatable() {
 				client.SRem("tasks-repeatable-"+t300, task)
 			}
 		}
+	}
+}
+
+func TaskRepeatableRemoveHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method == "POST" {
+		uuid := r.FormValue("uuid")
+
+		if len(uuid) != 36 || strings.Count(uuid, "-") != 4 {
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte("Missing required UUID param."))
+			return
+		}
+
+		titles, _ := client.Keys("tasks-repeatable-*").Result()
+		count := len(titles)
+		// log.Println(count, titles)
+
+		if count > 0 {
+			var keys []string
+			var err error
+			for _, val := range titles {
+				keys, _, err = client.SScan(val, 0, "", 0).Result()
+				if err != nil {
+					log.Println(err)
+				} else {
+					// log.Println(keys)
+					for _, item := range keys {
+						var t Action
+						err := json.Unmarshal([]byte(item), &t)
+						if err != nil {
+							log.Println(err.Error())
+						}
+						if t.Uuid == uuid {
+							client.SRem(val, item)
+						}
+					}
+				}
+			}
+		}
+	}
+
+	if r.Header.Get("X-Requested-With") == "xmlhttprequest" {
+		fmt.Fprintf(w, `{"status": "ok"}`)
+	} else {
+		ShowRepeatableTasks(w, r)
 	}
 }
 
@@ -830,6 +877,55 @@ func ShowMyTasks(w http.ResponseWriter, r *http.Request) {
 
 	// tmpl := template.Must(template.ParseFiles("templates/tasks.html"))
 	tmpl, _ := templ.New("tasks", Asset).Parse("tasks.html")
+	tmpl.Execute(w, varmap)
+}
+
+func ShowRepeatableTasks(w http.ResponseWriter, r *http.Request) {
+	userUuid, _ := client.Get("user/uuid/" + r.Header.Get("X-Forwarded-User")).Result()
+	if userUuid == "" {
+		u, _ := uuid.NewV4()
+		userUuid = u.String()
+		client.Set(fmt.Sprintf("user/uuid/%s", r.Header.Get("X-Forwarded-User")), userUuid, 0)
+	}
+
+	titles, _ := client.Keys("tasks-repeatable-*").Result()
+	count := len(titles)
+	// log.Println(count, titles)
+
+	var results []Action
+	if count > 0 {
+		var keys []string
+		var err error
+		for _, val := range titles {
+			keys, _, err = client.SScan(val, 0, "", 0).Result()
+			if err != nil {
+				log.Println(err)
+			} else {
+				// log.Println(keys)
+				for _, val := range keys {
+					var t Action
+					err := json.Unmarshal([]byte(val), &t)
+					if err != nil {
+						log.Println(err.Error())
+					}
+					results = append(results, t)
+				}
+			}
+		}
+		// log.Println(len(results), count, results)
+	}
+
+	varmap := map[string]interface{}{
+		"Version":        version,
+		"User":           r.Header.Get("X-Forwarded-User"),
+		"UserUUID":       userUuid,
+		"Results":        results,
+		csrf.TemplateTag: csrf.TemplateField(r),
+	}
+	// log.Println(varmap)
+
+	// tmpl := template.Must(template.ParseFiles("templates/tasks.html"))
+	tmpl, _ := templ.New("repeatable", Asset).Parse("repeatable.html")
 	tmpl.Execute(w, varmap)
 }
 
