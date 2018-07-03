@@ -1,7 +1,7 @@
 <html>
 
 <head>
-    <title>My tasks</title>
+    <title>My Zonds</title>
     <style>
         body {
             font-family: 'Open Sans', sans-serif;
@@ -172,17 +172,13 @@
         <tr>
             <th>Created / Updated</th>
             <th>UUID</th>
-            <th>Command</th>
-            <th>Results</th>
+            <th>Name</th>
         </tr>
         {{range .Results}}
         <tr>
             <td>{{ .Created }} / {{ .Updated }}</td>
-            <td>{{.ZondUuid}}</td>
-            <td>{{.Action}} {{.Param}} {{.Repeat}}</td>
-            <td>
-                <pre>{{.Result}}</pre>
-            </td>
+            <td>{{ .Uuid }}</td>
+            <td>{{ .Name }} </td>
         </tr>
         {{else}} Not found {{end}}
     </table>
