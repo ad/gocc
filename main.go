@@ -26,7 +26,7 @@ import (
 	"github.com/ulule/limiter/drivers/store/memory"
 )
 
-const version = "0.2.1"
+const version = "0.2.2"
 
 type Action struct {
 	Creator    string `json:"creator"`
@@ -470,10 +470,14 @@ func resendOffline() {
 		for _, task := range tasks {
 			js, _ := client.Get("task/" + task).Result()
 
-			// TODO: respect destination
-
-			go post("http://127.0.0.1:80/pub/tasks", string(js))
-			log.Println(js)
+			var action Action
+			err := json.Unmarshal([]byte(js), &action)
+			if err != nil {
+				log.Println(err.Error())
+			} else {
+				go post("http://127.0.0.1:80/pub/"+action.Target, string(js))
+				log.Println(action)
+			}
 		}
 	}
 }
@@ -492,7 +496,9 @@ func resendRepeatable() {
 			if err != nil {
 				log.Println(err.Error())
 			} else {
-				action.ParentUUID = action.Uuid
+				if len(action.ParentUUID) == 0 {
+					action.ParentUUID = action.Uuid
+				}
 				u, _ := uuid.NewV4()
 				var Uuid = u.String()
 				action.Uuid = Uuid
@@ -546,11 +552,15 @@ func resetProcessing() {
 
 				client.SAdd("tasks-new", taskUuid)
 
-				// TODO: respect destination
-
 				js, _ := client.Get("task/" + taskUuid).Result()
-				go post("http://127.0.0.1:80/pub/tasks", string(js))
-				log.Println("Task resend to queue", tp, js)
+				var action Action
+				err := json.Unmarshal([]byte(js), &action)
+				if err != nil {
+					log.Println(err.Error())
+				} else {
+					go post("http://127.0.0.1:80/pub/"+action.Target, string(js))
+					log.Println("Task resend to queue", action)
+				}
 			}
 		}
 	}

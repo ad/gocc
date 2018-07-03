@@ -26,7 +26,7 @@
 
                 var dt = new Date(event.updated * 1000).toLocaleString()
                 cell1.innerHTML = dt;
-                cell2.innerHTML = '<span class="dest">' + event.zond + "</span>";
+                cell2.innerHTML = '<span class="dest">' + event.creator + '/' + event.zond + "</span>";
                 cell3.innerHTML = '<span class="action">' + event.action + '</span> <span class="param">' + event.param + '</span> <span class="repeat">' + event.repeat + '</span>';
                 cell4.innerHTML = "<pre>" + nl2br(event.result) + "</pre>";
 
@@ -177,7 +177,7 @@
     <table border="0" id="commands">
         <tr>
             <th>Date</th>
-            <th>Executor</th>
+            <th>Creator/Executor</th>
             <th>Command</th>
             <th>Results</th>
         </tr>
