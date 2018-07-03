@@ -785,10 +785,10 @@ func ShowMyTasks(w http.ResponseWriter, r *http.Request) {
 	if count > 0 {
 		// log.Println(count)
 		var cursor = uint64(int64(perPage) * int64(currentPage-1))
-		var cursorNew uint64
+		// var cursorNew uint64
 		var keys []string
 		var err error
-		keys, cursorNew, err = client.SScan("user/tasks/"+userUuid, cursor, "", int64(perPage)).Result()
+		keys, _, err = client.SScan("user/tasks/"+userUuid, cursor, "", int64(perPage)).Result()
 
 		if err != nil {
 			log.Println(err)
@@ -850,10 +850,10 @@ func ShowMyZonds(w http.ResponseWriter, r *http.Request) {
 	if count > 0 {
 		// log.Println(count)
 		var cursor = uint64(int64(perPage) * int64(currentPage-1))
-		var cursorNew uint64
+		// var cursorNew uint64
 		var keys []string
 		var err error
-		keys, cursorNew, err = client.SScan("user/zonds/"+userUuid, cursor, "", int64(perPage)).Result()
+		keys, _, err = client.SScan("user/zonds/"+userUuid, cursor, "", int64(perPage)).Result()
 
 		if err != nil {
 			log.Println(err)
