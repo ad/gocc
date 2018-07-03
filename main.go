@@ -7,16 +7,18 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"math"
 	"math/rand"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
+	pagination "github.com/AndyEverLie/go-pagination-bootstrap"
 	"github.com/ad/gocc/mail"
 	"github.com/ad/gocc/selfupdate"
 	"github.com/ad/gocc/utils"
-	"github.com/arschles/go-bindata-html-template"
+	templ "github.com/arschles/go-bindata-html-template"
 	"github.com/go-redis/redis"
 	"github.com/gorilla/csrf"
 	"github.com/gorilla/securecookie"
@@ -131,6 +133,7 @@ func main() {
 	mux.Handle("/dispatch/", throttle(time.Minute, 60, http.HandlerFunc(DispatchHandler)))
 	mux.Handle("/version", throttle(time.Minute, 60, http.HandlerFunc(ShowVersion)))
 	mux.Handle("/task/create", throttle(time.Minute, 10, http.HandlerFunc(TaskCreatetHandler)))
+	mux.Handle("/task/my", throttle(time.Minute, 60, http.HandlerFunc(ShowMyTasks)))
 	mux.Handle("/zond/task/block", throttle(time.Minute, 60, http.HandlerFunc(TaskBlockHandler)))
 	mux.Handle("/zond/task/result", throttle(time.Minute, 60, http.HandlerFunc(TaskResultHandler)))
 	mux.Handle("/zond/pong", throttle(time.Minute, 5, http.HandlerFunc(ZondPong)))
@@ -760,8 +763,89 @@ func ShowCreateForm(w http.ResponseWriter, r *http.Request, zonduuid string) {
 		csrf.TemplateTag: csrf.TemplateField(r),
 	}
 
-	tmpl, _ := template.New("dashboard", Asset).Parse("dashboard.html")
+	tmpl, _ := templ.New("dashboard", Asset).Parse("dashboard.html")
 	tmpl.Execute(w, varmap)
+}
+
+func ShowMyTasks(w http.ResponseWriter, r *http.Request) {
+	var perPage int = 20
+	page, _ := strconv.ParseInt(r.FormValue("page"), 10, 0)
+	userUuid, _ := client.Get("user/uuid/" + r.Header.Get("X-Forwarded-User")).Result()
+	if userUuid == "" {
+		u, _ := uuid.NewV4()
+		userUuid = u.String()
+		client.Set(fmt.Sprintf("user/uuid/%s", r.Header.Get("X-Forwarded-User")), userUuid, 0)
+	}
+
+	count, _ := client.SCard("user/tasks/" + userUuid).Result()
+	currentPage, pages, hasPrev, hasNext := GetPaginator(int(page), int(count), perPage)
+
+	var results []Action
+	if count > 0 {
+		// log.Println(count)
+		var cursor = uint64(int64(perPage) * int64(currentPage-1))
+		var cursorNew uint64
+		var keys []string
+		var err error
+		keys, cursorNew, err = client.SScan("user/tasks/"+userUuid, cursor, "", int64(perPage)).Result()
+
+		if err != nil {
+			log.Println(err)
+		} else {
+			for i, val := range keys {
+				keys[i] = "task/" + val
+			}
+
+			items, _ := client.MGet(keys...).Result()
+			for _, val := range items {
+				var t Action
+				err := json.Unmarshal([]byte(val.(string)), &t)
+				if err != nil {
+					log.Println(err.Error())
+				}
+				results = append(results, t)
+			}
+			// log.Println(len(results), count, results)
+		}
+		log.Println(len(results), count, currentPage, cursor, cursorNew, perPage)
+	}
+
+	pager := pagination.New(int(count), perPage, currentPage, "/my/tasks")
+
+	varmap := map[string]interface{}{
+		"Version":        version,
+		"User":           r.Header.Get("X-Forwarded-User"),
+		"UserUUID":       userUuid,
+		"Results":        results,
+		"AllCount":       count,
+		"Pages":          pages,
+		"Page":           page,
+		"HasPrev":        hasPrev,
+		"HasNext":        hasNext,
+		"pager":          pager,
+		csrf.TemplateTag: csrf.TemplateField(r),
+	}
+	// log.Println(varmap)
+
+	// tmpl := template.Must(template.ParseFiles("templates/tasks.html"))
+	tmpl, _ := templ.New("tasks", Asset).Parse("tasks.html")
+	tmpl.Execute(w, varmap)
+}
+
+func GetPaginator(page int, total_count int, per_page int) (currentPage int, pages int, hasPrev bool, hasNext bool) {
+	pages = int(math.Ceil(float64(total_count) / float64(per_page)))
+	if page > pages {
+		page = pages
+	} else if page < 1 {
+		page = 1
+	}
+
+	hasPrev = page > 1
+	hasNext = page < pages
+
+	currentPage = page
+
+	return
 }
 
 func ShowVersion(w http.ResponseWriter, r *http.Request) {
@@ -843,7 +927,7 @@ func UserLoginHandler(w http.ResponseWriter, r *http.Request) {
 		"ErrorMessage":   errorMessage,
 		csrf.TemplateTag: csrf.TemplateField(r),
 	}
-	tmpl, _ := template.New("login", Asset).Parse("login.html")
+	tmpl, _ := templ.New("login", Asset).Parse("login.html")
 	tmpl.Execute(w, varmap)
 }
 
@@ -922,7 +1006,7 @@ func userRegisterHandler(w http.ResponseWriter, r *http.Request) {
 		"ErrorMessage":   errorMessage,
 		csrf.TemplateTag: csrf.TemplateField(r),
 	}
-	tmpl, _ := template.New("register", Asset).Parse("register.html")
+	tmpl, _ := templ.New("register", Asset).Parse("register.html")
 	tmpl.Execute(w, varmap)
 }
 
@@ -962,7 +1046,7 @@ func userRecoverHandler(w http.ResponseWriter, r *http.Request) {
 		"ErrorMessage":   errorMessage,
 		csrf.TemplateTag: csrf.TemplateField(r),
 	}
-	tmpl, _ := template.New("password_recovery", Asset).Parse("password_recovery.html")
+	tmpl, _ := templ.New("password_recovery", Asset).Parse("password_recovery.html")
 	tmpl.Execute(w, varmap)
 }
 
