@@ -26,7 +26,7 @@ import (
 	"github.com/ulule/limiter/drivers/store/memory"
 )
 
-const version = "0.2.2"
+const version = "0.2.3"
 
 type Action struct {
 	Creator    string `json:"creator"`
@@ -112,6 +112,16 @@ func main() {
 			}
 		}
 	}(resendRepeatableTicker)
+
+	getActiveDestinationsTicker := time.NewTicker(120 * time.Second)
+	go func(getActiveDestinationsTicker *time.Ticker) {
+		for {
+			select {
+			case <-getActiveDestinationsTicker.C:
+				getActiveDestinations()
+			}
+		}
+	}(getActiveDestinationsTicker)
 
 	go resendOffline()
 
