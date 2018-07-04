@@ -1,8 +1,8 @@
 # gocc
 
-Nginx --with-auth-req --with-nchan-module
-Redis
-Postfix
+- Nginx --with-auth-req --with-nchan-module
+- Redis
+- Postfix
 
 # TODO
 - check if zond-uuid is registered and active

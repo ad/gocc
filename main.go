@@ -10,6 +10,7 @@ import (
 	"math"
 	"math/rand"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -21,6 +22,8 @@ import (
 	templ "github.com/arschles/go-bindata-html-template"
 	"github.com/go-redis/redis"
 	"github.com/gorilla/csrf"
+	"github.com/gorilla/handlers"
+	"github.com/gorilla/mux"
 	"github.com/gorilla/securecookie"
 	"github.com/nu7hatch/gouuid"
 	"github.com/ulule/limiter"
@@ -127,29 +130,29 @@ func main() {
 
 	go resendOffline()
 
-	mux := http.NewServeMux()
+	r := mux.NewRouter()
 
-	mux.Handle("/", throttle(time.Minute, 60, http.HandlerFunc(GetHandler)))
-	mux.Handle("/dispatch/", throttle(time.Minute, 60, http.HandlerFunc(DispatchHandler)))
-	mux.Handle("/version", throttle(time.Minute, 60, http.HandlerFunc(ShowVersion)))
-	mux.Handle("/task/create", throttle(time.Minute, 10, http.HandlerFunc(TaskCreateHandler)))
-	mux.Handle("/task/my", throttle(time.Minute, 60, http.HandlerFunc(ShowMyTasks)))
-	mux.Handle("/task/repeatable", throttle(time.Minute, 60, http.HandlerFunc(ShowRepeatableTasks)))
-	mux.Handle("/task/repeatable/remove", throttle(time.Minute, 10, http.HandlerFunc(TaskRepeatableRemoveHandler)))
-	mux.Handle("/zond/task/block", throttle(time.Minute, 60, http.HandlerFunc(TaskBlockHandler)))
-	mux.Handle("/zond/task/result", throttle(time.Minute, 60, http.HandlerFunc(TaskResultHandler)))
-	mux.Handle("/zond/pong", throttle(time.Minute, 5, http.HandlerFunc(ZondPong)))
-	mux.Handle("/zond/create", throttle(time.Minute, 60, http.HandlerFunc(ZondCreateHandler)))
-	mux.Handle("/zond/my", throttle(time.Minute, 60, http.HandlerFunc(ShowMyZonds)))
-	mux.Handle("/zond/sub", throttle(time.Minute, 60, http.HandlerFunc(ZondSub)))
-	mux.Handle("/zond/unsub", throttle(time.Minute, 60, http.HandlerFunc(ZondUnsub)))
-	mux.Handle("/user", throttle(time.Minute, 60, http.HandlerFunc(userInfoHandler)))
-	mux.Handle("/user/auth", throttle(time.Minute, 60, http.HandlerFunc(UserAuthHandler)))
-	mux.Handle("/recover", throttle(time.Minute, 3, http.HandlerFunc(userRecoverHandler)))
-	mux.Handle("/reset", throttle(time.Minute, 3, http.HandlerFunc(userResetHandler)))
-	mux.Handle("/login", throttle(time.Minute, 5, http.HandlerFunc(UserLoginHandler)))
-	mux.Handle("/register", throttle(time.Minute, 5, http.HandlerFunc(userRegisterHandler)))
-	mux.Handle("/auth", http.HandlerFunc(authHandler))
+	r.Handle("/", throttle(time.Minute, 60, http.HandlerFunc(GetHandler))).Methods("GET")
+	r.Handle("/dispatch/", throttle(time.Minute, 60, http.HandlerFunc(DispatchHandler)))
+	r.Handle("/version", throttle(time.Minute, 60, http.HandlerFunc(ShowVersion))).Methods("GET")
+	r.Handle("/task/create", throttle(time.Minute, 10, http.HandlerFunc(TaskCreateHandler)))
+	r.Handle("/task/my", throttle(time.Minute, 60, http.HandlerFunc(ShowMyTasks)))
+	r.Handle("/task/repeatable", throttle(time.Minute, 60, http.HandlerFunc(ShowRepeatableTasks)))
+	r.Handle("/task/repeatable/remove", throttle(time.Minute, 10, http.HandlerFunc(TaskRepeatableRemoveHandler)))
+	r.Handle("/zond/task/block", throttle(time.Minute, 60, http.HandlerFunc(TaskBlockHandler)))
+	r.Handle("/zond/task/result", throttle(time.Minute, 60, http.HandlerFunc(TaskResultHandler)))
+	r.Handle("/zond/pong", throttle(time.Minute, 5, http.HandlerFunc(ZondPong)))
+	r.Handle("/zond/create", throttle(time.Minute, 60, http.HandlerFunc(ZondCreateHandler)))
+	r.Handle("/zond/my", throttle(time.Minute, 60, http.HandlerFunc(ShowMyZonds)))
+	r.Handle("/zond/sub", throttle(time.Minute, 60, http.HandlerFunc(ZondSub)))
+	r.Handle("/zond/unsub", throttle(time.Minute, 60, http.HandlerFunc(ZondUnsub)))
+	r.Handle("/user", throttle(time.Minute, 60, http.HandlerFunc(userInfoHandler))).Methods("GET")
+	r.Handle("/user/auth", throttle(time.Minute, 60, http.HandlerFunc(UserAuthHandler)))
+	r.Handle("/recover", throttle(time.Minute, 3, http.HandlerFunc(userRecoverHandler)))
+	r.Handle("/reset", throttle(time.Minute, 3, http.HandlerFunc(userResetHandler)))
+	r.Handle("/login", throttle(time.Minute, 5, http.HandlerFunc(UserLoginHandler)))
+	r.Handle("/register", throttle(time.Minute, 5, http.HandlerFunc(userRegisterHandler)))
+	r.Handle("/auth", http.HandlerFunc(authHandler))
 
 	CSRF := csrf.Protect(
 		[]byte(utils.RandStr(32)),
@@ -171,7 +174,7 @@ func main() {
 	}
 
 	log.Printf("listening on port %s", *port)
-	log.Fatal(http.ListenAndServe("127.0.0.1:"+*port, skipCheck(CSRF(mux))))
+	log.Fatal(http.ListenAndServe("127.0.0.1:"+*port, skipCheck(CSRF(handlers.LoggingHandler(os.Stdout, r)))))
 }
 
 func throttle(period time.Duration, limit int64, f http.Handler) http.Handler {
@@ -782,11 +785,13 @@ func post(url string, jsonData string) string {
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
+	if resp != nil {
+		defer resp.Body.Close()
+	}
 	if err != nil {
 		log.Println(err)
 		return "err"
 	}
-	defer resp.Body.Close()
 	body, _ := ioutil.ReadAll(resp.Body)
 	return string(body)
 }
@@ -796,11 +801,13 @@ func delete(url string) string {
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
+	if resp != nil {
+		defer resp.Body.Close()
+	}
 	if err != nil {
 		log.Println(err)
 		return "err"
 	}
-	defer resp.Body.Close()
 	return "ok"
 }
 
