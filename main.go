@@ -174,7 +174,7 @@ func main() {
 	}
 
 	log.Printf("listening on port %s", *port)
-	log.Fatal(http.ListenAndServe("127.0.0.1:"+*port, skipCheck(CSRF(handlers.LoggingHandler(os.Stdout, r)))))
+	log.Fatal(http.ListenAndServe("127.0.0.1:"+*port, skipCheck(CSRF(handlers.CombinedLoggingHandler(os.Stdout, r)))))
 }
 
 func throttle(period time.Duration, limit int64, f http.Handler) http.Handler {
@@ -483,9 +483,9 @@ func TaskResultHandler(w http.ResponseWriter, r *http.Request) {
 
 func resendOffline() {
 	tasks, _ := client.SMembers("tasks-new").Result()
-	log.Println("active tasks", tasks)
 
 	if len(tasks) > 0 {
+		log.Println("active tasks", tasks)
 		for _, task := range tasks {
 			js, _ := client.Get("task/" + task).Result()
 
@@ -506,9 +506,9 @@ func resendRepeatable() {
 	t300 := strconv.FormatInt(t-(t%300), 10) // modulo to nearest 5-minutes interval, like Mon, 02 Jul 2018 19:55:00 GMT
 
 	tasks, _ := client.SMembers("tasks-repeatable-" + t300).Result()
-	log.Println("repeatable tasks", tasks)
 
 	if len(tasks) > 0 {
+		log.Println("repeatable tasks", tasks)
 		for _, task := range tasks {
 			var action Action
 			err := json.Unmarshal([]byte(task), &action)
