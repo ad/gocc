@@ -174,7 +174,7 @@ func main() {
 	}
 
 	log.Printf("listening on port %s", *port)
-	log.Fatal(http.ListenAndServe("127.0.0.1:"+*port, skipCheck(CSRF(handlers.CombinedLoggingHandler(os.Stdout, r)))))
+	log.Fatal(http.ListenAndServe("127.0.0.1:"+*port, skipCheck(CSRF(loggingHandler(r)))))
 }
 
 func throttle(period time.Duration, limit int64, f http.Handler) http.Handler {
@@ -338,9 +338,9 @@ func TaskCreateHandler(w http.ResponseWriter, r *http.Request) {
 
 			client.SAdd("tasks-new", Uuid)
 
-			users, _ := client.SMembers("tasks-new").Result()
-			usersCount, _ := client.SCard("tasks-new").Result()
-			log.Println("tasks-new", users, usersCount)
+			// users, _ := client.SMembers("tasks-new").Result()
+			// usersCount, _ := client.SCard("tasks-new").Result()
+			// log.Println("tasks-new", users, usersCount)
 
 			userUuid, _ := client.Get("user/uuid/" + r.Header.Get("X-Forwarded-User")).Result()
 			if userUuid == "" {
@@ -671,7 +671,7 @@ func ZondPong(w http.ResponseWriter, r *http.Request) {
 			if err != nil {
 				log.Println(err.Error())
 			}
-			log.Println("pong from", t.ZondUuid, r.Header.Get("X-Forwarded-For"))
+			// log.Println("pong from", t.ZondUuid, r.Header.Get("X-Forwarded-For"))
 			tp, _ := client.Get(t.ZondUuid + "/alive").Result()
 			if t.Uuid == tp {
 				client.Del(t.ZondUuid + "/alive")
@@ -754,7 +754,7 @@ func getActiveDestinations() {
 		asns = SliceUniqMap(asns)
 	}
 
-	log.Println(zonds, cities, countries, asns)
+	// log.Println(zonds, cities, countries, asns)
 
 	channels := Channels{Action: "destinations", Zonds: zonds, Countries: countries, Cities: cities, ASNs: asns}
 	js, _ := json.Marshal(channels)
