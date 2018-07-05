@@ -39,6 +39,11 @@
                 row.addEventListener("click", function (event) {
                     createTask(this.querySelector('.dest').innerHTML, this.querySelector('.action').innerHTML, this.querySelector('.param').innerHTML, this.querySelector('.repeat').innerHTML);
                 }, false);
+
+                rws = table.getElementsByTagName('TR');
+                if (rws.length > 51) {
+                    table.deleteRow(rws.length - 1);
+                }
             }
         };
 
