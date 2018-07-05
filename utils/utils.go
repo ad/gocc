@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"bytes"
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
@@ -119,4 +120,52 @@ func FQDN() string {
 		}
 	}
 	return hostname
+}
+
+func SliceUniqMap(s []string) []string {
+	seen := make(map[string]struct{}, len(s))
+	j := 0
+	for _, v := range s {
+		if _, ok := seen[v]; ok {
+			continue
+		}
+		seen[v] = struct{}{}
+		s[j] = v
+		j++
+	}
+	return s[:j]
+}
+
+func Post(url string, jsonData string) string {
+	var jsonStr = []byte(jsonData)
+
+	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonStr))
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if resp != nil {
+		defer resp.Body.Close()
+	}
+	if err != nil {
+		log.Println(err)
+		return "err"
+	}
+	body, _ := ioutil.ReadAll(resp.Body)
+	return string(body)
+}
+
+func Delete(url string) string {
+	req, err := http.NewRequest("DELETE", url, nil)
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if resp != nil {
+		defer resp.Body.Close()
+	}
+	if err != nil {
+		log.Println(err)
+		return "err"
+	}
+	return "ok"
 }
