@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -29,7 +28,7 @@ import (
 	"github.com/ulule/limiter/drivers/store/memory"
 )
 
-const version = "0.2.5"
+const version = "0.2.7"
 
 type Action struct {
 	Creator    string `json:"creator"`
@@ -84,7 +83,7 @@ var (
 func main() {
 	log.Printf("Started version %s at %s", version, fqdn)
 
-	go selfupdate.StartSelfupdate("ad/gocc", version)
+	go selfupdate.StartSelfupdate("ad/gocc", version, fqdn)
 
 	resetProcessingTicker := time.NewTicker(60 * time.Second)
 	go func(resetProcessingTicker *time.Ticker) {
@@ -171,6 +170,26 @@ func main() {
 		return http.HandlerFunc(fn)
 	}
 
+	loggingHandler := func(h http.Handler) http.Handler {
+		fn := func(w http.ResponseWriter, r *http.Request) {
+			t := time.Now()
+			h.ServeHTTP(w, r)
+			elapsed := time.Since(t)
+			fmt.Printf(
+				"%s - %s%s - [%s] \"%s %s %s\" %s\n",
+				r.Header.Get("X-Forwarded-For"),
+				r.Header.Get("X-Zonduuid"),
+				r.Header.Get("X-Forwarded-User"),
+				t.Format("02/Jan/2006:15:04:05 -0700"),
+				r.Method,
+				r.RequestURI,
+				r.Proto,
+				elapsed,
+			)
+		}
+		return http.HandlerFunc(fn)
+	}
+
 	log.Printf("listening on port %s", *port)
 	log.Fatal(http.ListenAndServe("127.0.0.1:"+*port, skipCheck(CSRF(loggingHandler(r)))))
 }
@@ -214,8 +233,6 @@ func GetHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func DispatchHandler(w http.ResponseWriter, r *http.Request) {
-	// log.Println("DispatchHandler", r.Header.Get("X-Zonduuid"), r.Header.Get("X-Forwarded-For"))
-
 	var uuid = r.Header.Get("X-Zonduuid")
 	var ip = r.Header.Get("X-Forwarded-For")
 	if len(uuid) > 0 {
@@ -224,9 +241,8 @@ func DispatchHandler(w http.ResponseWriter, r *http.Request) {
 		w.Header().Add("X-Accel-Redirect", "/internal/sub/zond:"+uuid+","+add+","+ip)
 		w.Header().Add("X-Accel-Buffering", "no")
 	} else {
-		// log.Println("/internal/sub/tasks/done," + ip)
-
-		w.Header().Add("X-Accel-Redirect", "/internal/sub/destinations,tasks/done,"+ip)
+		log.Println("/internal/sub/destinations,tasks/done," + ip + "," + fqdn)
+		w.Header().Add("X-Accel-Redirect", "/internal/sub/destinations,tasks/done,"+ip+","+fqdn)
 		w.Header().Add("X-Accel-Buffering", "no")
 	}
 	w.WriteHeader(http.StatusOK)
@@ -361,7 +377,7 @@ func TaskCreateHandler(w http.ResponseWriter, r *http.Request) {
 				client.SAdd("tasks-repeatable-"+strconv.FormatInt(t300, 10), string(js))
 			}
 
-			go post("http://127.0.0.1:80/pub/"+destination, string(js))
+			go utils.Post("http://127.0.0.1:80/pub/"+destination, string(js))
 
 			log.Println(ip, taskType, Uuid)
 		} else {
@@ -465,7 +481,7 @@ func TaskResultHandler(w http.ResponseWriter, r *http.Request) {
 								http.StatusInternalServerError)
 						}
 						client.Set("task/"+t.Uuid, jsonBody, 0)
-						go post("http://127.0.0.1:80/pub/tasks/done", string(jsonBody))
+						go utils.Post("http://127.0.0.1:80/pub/tasks/done", string(jsonBody))
 					} else {
 						log.Println(t.ZondUuid, `{"status": "error", "message": "task not found"}`)
 						// w.Header().Set("X-CSRF-Token", csrf.Token(r))
@@ -492,7 +508,7 @@ func resendOffline() {
 			if err != nil {
 				log.Println(err.Error())
 			} else {
-				go post("http://127.0.0.1:80/pub/"+action.Target, string(js))
+				go utils.Post("http://127.0.0.1:80/pub/"+action.Target, string(js))
 				log.Println(action)
 			}
 		}
@@ -546,7 +562,7 @@ func resendRepeatable() {
 
 				client.SAdd("tasks-repeatable-"+strconv.FormatInt(t300new, 10), string(js))
 
-				go post("http://127.0.0.1:80/pub/"+action.Target, string(js))
+				go utils.Post("http://127.0.0.1:80/pub/"+action.Target, string(js))
 
 				client.SRem("tasks-repeatable-"+t300, task)
 			}
@@ -620,7 +636,7 @@ func resetProcessing() {
 				if err != nil {
 					log.Println(err.Error())
 				} else {
-					go post("http://127.0.0.1:80/pub/"+action.Target, string(js))
+					go utils.Post("http://127.0.0.1:80/pub/"+action.Target, string(js))
 					log.Println("Task resend to queue", action)
 				}
 			}
@@ -642,7 +658,7 @@ func checkAlive() {
 				action := Action{Action: "alive", Uuid: Uuid, Created: msec}
 				js, _ := json.Marshal(action)
 				client.Set(zond+"/alive", Uuid, 90*time.Second)
-				go post("http://127.0.0.1:80/pub/zond:"+zond, string(js))
+				go utils.Post("http://127.0.0.1:80/pub/zond:"+zond, string(js))
 			} else {
 				log.Println(zond, "— removed")
 				client.SRem("Zond-online", zond)
@@ -650,7 +666,7 @@ func checkAlive() {
 				client.HDel("zond:city", zond)
 				client.HDel("zond:country", zond)
 				client.HDel("zond:asn", zond)
-				go delete("http://127.0.0.1:80/pub/zond:" + zond)
+				go utils.Delete("http://127.0.0.1:80/pub/zond:" + zond)
 				getActiveDestinations()
 			}
 		}
@@ -739,17 +755,17 @@ func getActiveDestinations() {
 
 	cities, _ := client.HVals("zond:city").Result()
 	if len(cities) > 0 {
-		cities = SliceUniqMap(cities)
+		cities = utils.SliceUniqMap(cities)
 	}
 
 	countries, _ := client.HVals("zond:country").Result()
 	if len(countries) > 0 {
-		countries = SliceUniqMap(countries)
+		countries = utils.SliceUniqMap(countries)
 	}
 
 	asns, _ := client.HVals("zond:asn").Result()
 	if len(asns) > 0 {
-		asns = SliceUniqMap(asns)
+		asns = utils.SliceUniqMap(asns)
 	}
 
 	// log.Println(zonds, cities, countries, asns)
@@ -758,61 +774,14 @@ func getActiveDestinations() {
 	js, _ := json.Marshal(channels)
 	// log.Println(string(js))
 
-	go post("http://127.0.0.1:80/pub/destinations", string(js))
-}
-
-func SliceUniqMap(s []string) []string {
-	seen := make(map[string]struct{}, len(s))
-	j := 0
-	for _, v := range s {
-		if _, ok := seen[v]; ok {
-			continue
-		}
-		seen[v] = struct{}{}
-		s[j] = v
-		j++
-	}
-	return s[:j]
-}
-
-func post(url string, jsonData string) string {
-	var jsonStr = []byte(jsonData)
-
-	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonStr))
-	req.Header.Set("Content-Type", "application/json")
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if resp != nil {
-		defer resp.Body.Close()
-	}
-	if err != nil {
-		log.Println(err)
-		return "err"
-	}
-	body, _ := ioutil.ReadAll(resp.Body)
-	return string(body)
-}
-
-func delete(url string) string {
-	req, err := http.NewRequest("DELETE", url, nil)
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if resp != nil {
-		defer resp.Body.Close()
-	}
-	if err != nil {
-		log.Println(err)
-		return "err"
-	}
-	return "ok"
+	go utils.Post("http://127.0.0.1:80/pub/destinations", string(js))
 }
 
 func ShowCreateForm(w http.ResponseWriter, r *http.Request, zonduuid string) {
 	varmap := map[string]interface{}{
 		"ZondUUID":       zonduuid,
 		"Version":        version,
+		"FQDN":           fqdn,
 		csrf.TemplateTag: csrf.TemplateField(r),
 	}
 

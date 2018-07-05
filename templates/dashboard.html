@@ -3,7 +3,7 @@
 <head>
     <title>Control center</title>
     <script>
-        var socket = new WebSocket("ws://" + location.host + "/sub/tasks/done");
+        var socket = new WebSocket("ws://" + location.host + "/sub/tasks/done,{{.FQDN}}");
 
         socket.onmessage = function (message) {
             var event = JSON.parse(message.data);
@@ -14,6 +14,12 @@
                 addOptions("asns", "zond:asn:", event.asns)
                 addOptions("countries", "zond:country:", event.countries)
                 addOptions("cities", "zond:city:", event.cities)
+            } else if (event.action == "updated") {
+                if (event.version != "{{.Version}}" && event.version > "{{.Version}}") {
+                    var version = document.getElementById("version");
+                    version.style.color = "red"
+                    version.innerText = "CC updated, reload page"
+                }
             } else {
                 var table = document.getElementById("commands");
 
@@ -90,7 +96,8 @@
         }
 
         function nl2br(str) {
-            return str.replace(/([^>])\n/g, '$1<br/>');
+            if (str)
+                return str.replace(/([^>])\n/g, '$1<br/>');
         }
     </script>
     <style>
@@ -183,7 +190,7 @@
         </tr>
     </table>
     <div style="position: fixed; bottom: 0; right: 0; padding: 5px; font: 9px sans-serif;">
-        {{.Version}}
+        <a href="/version" id="version">{{.Version}}</a>
     </div>
 </body>
 
