@@ -7,9 +7,9 @@ import (
 	"net/http"
 	"time"
 
-	"../ccredis"
-
+	"github.com/ad/gocc/ccredis"
 	"github.com/ad/gocc/utils"
+
 	"github.com/ulule/limiter"
 	"github.com/ulule/limiter/drivers/middleware/stdlib"
 	"github.com/ulule/limiter/drivers/store/memory"

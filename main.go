@@ -9,12 +9,12 @@ import (
 	"strings"
 	"time"
 
-	"./api"
-	"./background"
-	"./handlers"
-	"./utils"
-
+	"github.com/ad/gocc/api"
+	"github.com/ad/gocc/background"
+	"github.com/ad/gocc/handlers"
 	"github.com/ad/gocc/selfupdate"
+	"github.com/ad/gocc/utils"
+
 	"github.com/gorilla/csrf"
 	"github.com/gorilla/mux"
 	"github.com/nu7hatch/gouuid"

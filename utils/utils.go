@@ -15,8 +15,8 @@ import (
 	"strings"
 	"time"
 
-	"../ccredis"
-	"../structs"
+	"github.com/ad/gocc/ccredis"
+	"github.com/ad/gocc/structs"
 	"github.com/ad/gocc/utils"
 
 	"golang.org/x/crypto/bcrypt"

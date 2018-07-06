@@ -10,10 +10,10 @@ import (
 	"strings"
 	"time"
 
-	"../bindata"
-	"../ccredis"
-	"../structs"
-	"../utils"
+	"github.com/ad/gocc/bindata"
+	"github.com/ad/gocc/ccredis"
+	"github.com/ad/gocc/structs"
+	"github.com/ad/gocc/utils"
 
 	pagination "github.com/AndyEverLie/go-pagination-bootstrap"
 	templ "github.com/arschles/go-bindata-html-template"

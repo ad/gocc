@@ -7,11 +7,11 @@ import (
 	"strings"
 	"time"
 
-	"../bindata"
-	"../ccredis"
-
+	"github.com/ad/gocc/bindata"
+	"github.com/ad/gocc/ccredis"
 	"github.com/ad/gocc/mail"
 	"github.com/ad/gocc/utils"
+
 	templ "github.com/arschles/go-bindata-html-template"
 	"github.com/gorilla/csrf"
 	"github.com/gorilla/securecookie"
