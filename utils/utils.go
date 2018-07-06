@@ -8,25 +8,19 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"math"
 	"net"
 	"net/http"
 	"os"
 	"strings"
 	"time"
 
+	"../ccredis"
+	"../structs"
+	"github.com/ad/gocc/utils"
+
 	"golang.org/x/crypto/bcrypt"
 )
-
-// Geodata struct
-type Geodata struct {
-	City                         string  `json:"city"`
-	Country                      string  `json:"country"`
-	CountryCode                  string  `json:"country_code"`
-	Longitude                    float64 `json:"lon"`
-	Latitude                     float64 `json:"lat"`
-	AutonomousSystemNumber       uint    `json:"asn"`
-	AutonomousSystemOrganization string  `json:"provider"`
-}
 
 func IPToWSChannels(ip string) string {
 	var result []string
@@ -53,7 +47,7 @@ func IPToWSChannels(ip string) string {
 				log.Println(readErr)
 			} else {
 
-				geodata := Geodata{}
+				geodata := structs.Geodata{}
 				// log.Println(geodata)
 				jsonErr := json.Unmarshal(body, &geodata)
 				if jsonErr != nil {
@@ -122,6 +116,36 @@ func FQDN() string {
 	return hostname
 }
 
+func GetActiveDestinations() {
+	zonds, _ := ccredis.Client.SMembers("Zond-online").Result()
+	// if len(zonds) > 0 {
+	// 	// for _, zond := range zonds {
+	// }
+
+	cities, _ := ccredis.Client.HVals("zond:city").Result()
+	if len(cities) > 0 {
+		cities = utils.SliceUniqMap(cities)
+	}
+
+	countries, _ := ccredis.Client.HVals("zond:country").Result()
+	if len(countries) > 0 {
+		countries = utils.SliceUniqMap(countries)
+	}
+
+	asns, _ := ccredis.Client.HVals("zond:asn").Result()
+	if len(asns) > 0 {
+		asns = utils.SliceUniqMap(asns)
+	}
+
+	// log.Println(zonds, cities, countries, asns)
+
+	channels := structs.Channels{Action: "destinations", Zonds: zonds, Countries: countries, Cities: cities, ASNs: asns}
+	js, _ := json.Marshal(channels)
+	// log.Println(string(js))
+
+	go Post("http://127.0.0.1:80/pub/destinations", string(js))
+}
+
 func SliceUniqMap(s []string) []string {
 	seen := make(map[string]struct{}, len(s))
 	j := 0
@@ -134,6 +158,22 @@ func SliceUniqMap(s []string) []string {
 		j++
 	}
 	return s[:j]
+}
+
+func GetPaginator(page int, total_count int, per_page int) (currentPage int, pages int, hasPrev bool, hasNext bool) {
+	pages = int(math.Ceil(float64(total_count) / float64(per_page)))
+	if page > pages {
+		page = pages
+	} else if page < 1 {
+		page = 1
+	}
+
+	hasPrev = page > 1
+	hasNext = page < pages
+
+	currentPage = page
+
+	return
 }
 
 func Post(url string, jsonData string) string {
