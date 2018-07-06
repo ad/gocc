@@ -85,8 +85,8 @@ func main() {
 	r.Handle("/", handlers.Throttle(time.Minute, 60, http.HandlerFunc(handlers.GetHandler))).Methods("GET")
 	r.Handle("/auth", http.HandlerFunc(handlers.AuthHandler))
 
-	r.Handle("/api/task/create", handlers.Throttle(time.Minute, 10, http.HandlerFunc(handlers.TaskCreateHandler))).Methods("POST")
-	r.Handle("/api/zond/create", handlers.Throttle(time.Minute, 10, http.HandlerFunc(handlers.ZondCreateHandler))).Methods("POST")
+	r.Handle("/api/task/create", handlers.Throttle(time.Minute, 10, http.HandlerFunc(api.TaskCreateHandler))).Methods("POST")
+	r.Handle("/api/zond/create", handlers.Throttle(time.Minute, 10, http.HandlerFunc(api.ZondCreateHandler))).Methods("POST")
 
 	r.Handle("/dispatch/", handlers.Throttle(time.Minute, 60, http.HandlerFunc(handlers.DispatchHandler))).Methods("GET")
 	r.Handle("/version", handlers.Throttle(time.Minute, 60, http.HandlerFunc(handlers.ShowVersion))).Methods("GET")
