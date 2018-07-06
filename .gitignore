@@ -13,4 +13,3 @@
 .DS_Store
 release/
 gocc
-bindata.go
