@@ -20,7 +20,7 @@ import (
 	"github.com/nu7hatch/gouuid"
 )
 
-const version = "0.3.0"
+const version = "0.3.1"
 
 var port = flag.String("port", "9000", "Port to listen on")
 var serveruuid, _ = uuid.NewV4()
@@ -85,22 +85,24 @@ func main() {
 	r.Handle("/", handlers.Throttle(time.Minute, 60, http.HandlerFunc(handlers.GetHandler))).Methods("GET")
 	r.Handle("/auth", http.HandlerFunc(handlers.AuthHandler))
 
+	r.Handle("/api/task/create", handlers.Throttle(time.Minute, 10, http.HandlerFunc(handlers.TaskCreateHandler))).Methods("POST")
+	r.Handle("/api/zond/create", handlers.Throttle(time.Minute, 10, http.HandlerFunc(handlers.ZondCreateHandler))).Methods("POST")
+
 	r.Handle("/dispatch/", handlers.Throttle(time.Minute, 60, http.HandlerFunc(handlers.DispatchHandler))).Methods("GET")
 	r.Handle("/version", handlers.Throttle(time.Minute, 60, http.HandlerFunc(handlers.ShowVersion))).Methods("GET")
 	r.Handle("/task/create", handlers.Throttle(time.Minute, 10, http.HandlerFunc(handlers.ShowCreateForm))).Methods("GET")
-	r.Handle("/task/create", handlers.Throttle(time.Minute, 10, http.HandlerFunc(handlers.TaskCreateHandler))).Methods("POST")
-	r.Handle("/task/my", handlers.Throttle(time.Minute, 60, http.HandlerFunc(handlers.ShowMyTasks)))
+	r.Handle("/task/my", handlers.Throttle(time.Minute, 60, http.HandlerFunc(handlers.ShowMyTasks))).Methods("GET")
 	r.Handle("/task/repeatable", handlers.Throttle(time.Minute, 60, http.HandlerFunc(handlers.ShowRepeatableTasks))).Methods("GET")
 	r.Handle("/task/repeatable/remove", handlers.Throttle(time.Minute, 10, http.HandlerFunc(handlers.TaskRepeatableRemoveHandler))).Methods("POST")
 
-	r.Handle("/zond/task/block", handlers.Throttle(time.Minute, 60, http.HandlerFunc(handlers.TaskBlockHandler)))
-	r.Handle("/zond/task/result", handlers.Throttle(time.Minute, 60, http.HandlerFunc(handlers.TaskResultHandler)))
-
-	r.Handle("/zond/pong", handlers.Throttle(time.Minute, 5, http.HandlerFunc(handlers.ZondPong)))
-	r.Handle("/zond/create", handlers.Throttle(time.Minute, 60, http.HandlerFunc(handlers.ZondCreateHandler))).Methods("POST")
 	r.Handle("/zond/my", handlers.Throttle(time.Minute, 60, http.HandlerFunc(handlers.ShowMyZonds)))
-	r.Handle("/zond/sub", handlers.Throttle(time.Minute, 60, http.HandlerFunc(handlers.ZondSub)))
-	r.Handle("/zond/unsub", handlers.Throttle(time.Minute, 60, http.HandlerFunc(handlers.ZondUnsub)))
+
+	r.Handle("/zond/task/block", handlers.Throttle(time.Minute, 60, http.HandlerFunc(handlers.TaskBlockHandler))).Methods("POST")
+	r.Handle("/zond/task/result", handlers.Throttle(time.Minute, 60, http.HandlerFunc(handlers.TaskResultHandler))).Methods("POST")
+	r.Handle("/zond/pong", handlers.Throttle(time.Minute, 5, http.HandlerFunc(handlers.ZondPong))).Methods("POST")
+
+	r.Handle("/zond/sub", handlers.Throttle(time.Minute, 60, http.HandlerFunc(handlers.ZondSub))).Methods("GET")
+	r.Handle("/zond/unsub", handlers.Throttle(time.Minute, 60, http.HandlerFunc(handlers.ZondUnsub))).Methods("GET")
 
 	r.Handle("/user", handlers.Throttle(time.Minute, 60, http.HandlerFunc(handlers.UserInfoHandler))).Methods("GET")
 	r.Handle("/user/auth", handlers.Throttle(time.Minute, 60, http.HandlerFunc(handlers.UserAuthHandler)))

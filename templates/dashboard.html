@@ -60,7 +60,7 @@
         function createTask(dest, taskType, taskIp, repeatType) {
             var xhr = new XMLHttpRequest();
 
-            xhr.open('POST', '/task/create');
+            xhr.open('POST', '/api/task/create');
             xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
             xhr.setRequestHeader('X-Requested-With', 'xmlhttprequest');
             xhr.withCredentials = true;
@@ -78,7 +78,7 @@
         function createZond(zondName) {
             var xhr = new XMLHttpRequest();
 
-            xhr.open('POST', '/zond/create');
+            xhr.open('POST', '/api/zond/create');
             xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
             xhr.setRequestHeader('X-Requested-With', 'xmlhttprequest');
             xhr.withCredentials = true;
