@@ -17,7 +17,6 @@ import (
 
 	"github.com/ad/gocc/ccredis"
 	"github.com/ad/gocc/structs"
-	"github.com/ad/gocc/utils"
 
 	"golang.org/x/crypto/bcrypt"
 )
@@ -124,17 +123,17 @@ func GetActiveDestinations() {
 
 	cities, _ := ccredis.Client.HVals("zond:city").Result()
 	if len(cities) > 0 {
-		cities = utils.SliceUniqMap(cities)
+		cities = SliceUniqMap(cities)
 	}
 
 	countries, _ := ccredis.Client.HVals("zond:country").Result()
 	if len(countries) > 0 {
-		countries = utils.SliceUniqMap(countries)
+		countries = SliceUniqMap(countries)
 	}
 
 	asns, _ := ccredis.Client.HVals("zond:asn").Result()
 	if len(asns) > 0 {
-		asns = utils.SliceUniqMap(asns)
+		asns = SliceUniqMap(asns)
 	}
 
 	// log.Println(zonds, cities, countries, asns)
