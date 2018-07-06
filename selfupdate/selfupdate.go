@@ -42,7 +42,7 @@ func selfUpdate(slug string, version string, fqdn string) error {
 		fmt.Println("Update successfully done to version", latest.Version)
 		fmt.Println("Release note:\n", latest.ReleaseNotes)
 
-		go utils.Post("http://127.0.0.1:80/pub/"+fqdn, `{"action": "updated", "version": "`+fmt.Sprint(latest.Version)+`"}`)
+		utils.Post("http://127.0.0.1:80/pub/"+fqdn, `{"action": "updated", "version": "`+fmt.Sprint(latest.Version)+`"}`)
 
 		file, err := osext.Executable()
 		if err != nil {
