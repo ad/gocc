@@ -2,6 +2,7 @@ package background
 
 import (
 	"encoding/json"
+	"flag"
 	"log"
 	"strconv"
 	"strings"
@@ -13,6 +14,8 @@ import (
 
 	uuid "github.com/nu7hatch/gouuid"
 )
+
+var HistoryHours = flag.Int64("historyHours", 6, "How many hours check from history of repeatable tasks in case of downtime")
 
 func ResetProcessing() {
 	tasks, _ := ccredis.Client.SMembers("tasks-process").Result()
@@ -64,16 +67,16 @@ func ResendOffline() {
 }
 
 func ResendRepeatable(fromPast bool) {
-	var backTicks int64 = 36
+	var historyHours int64 = *HistoryHours
 	if !fromPast {
-		backTicks = 1
+		historyHours = 0
 	}
 
 	t := time.Now().Unix()
 	// t300 := strconv.FormatInt(t-(t%300), 10) // modulo to nearest 5-minutes interval, like Mon, 02 Jul 2018 19:55:00 GMT
 
-	start := t - (t % 300) - ((backTicks - 1) * 300)
 	end := t - (t % 300)
+	start := end - (historyHours / 12)
 
 	for i := start; start <= end; start += 300 {
 		// log.Println(i, start, end)
