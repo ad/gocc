@@ -5,7 +5,6 @@
 - Postfix
 
 # TODO
-- break code to packages
 - health-checking (https://github.com/etherlabsio/healthcheck)
 - fix "fixme"
 - do "todo

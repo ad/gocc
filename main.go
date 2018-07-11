@@ -11,7 +11,6 @@ import (
 
 	"github.com/ad/gocc/api"
 	"github.com/ad/gocc/background"
-	"github.com/ad/gocc/ccredis"
 	"github.com/ad/gocc/handlers"
 	"github.com/ad/gocc/selfupdate"
 	"github.com/ad/gocc/utils"
@@ -21,9 +20,10 @@ import (
 	"github.com/nu7hatch/gouuid"
 )
 
-const version = "0.3.2"
+const version = "0.3.3"
 
 var port = flag.String("port", "9000", "Port to listen on")
+var gogeoaddr = flag.String("gogeoaddr", "http://127.0.0.1:9001", "Address:port of gogeo instance")
 var serveruuid, _ = uuid.NewV4()
 var fqdn = utils.FQDN()
 
@@ -89,7 +89,8 @@ func main() {
 	r.Handle("/api/task/create", handlers.Throttle(time.Minute, 10, http.HandlerFunc(api.TaskCreateHandler))).Methods("POST")
 	r.Handle("/api/zond/create", handlers.Throttle(time.Minute, 10, http.HandlerFunc(api.ZondCreateHandler))).Methods("POST")
 
-	r.Handle("/dispatch/", handlers.Throttle(time.Minute, 60, http.HandlerFunc(handlers.DispatchHandler))).Methods("GET")
+	r.HandleFunc("/dispatch/", func(w http.ResponseWriter, r *http.Request) { handlers.DispatchHandler(w, r, gogeoaddr) })
+
 	r.Handle("/version", handlers.Throttle(time.Minute, 60, http.HandlerFunc(handlers.ShowVersion))).Methods("GET")
 	r.Handle("/task/create", handlers.Throttle(time.Minute, 10, http.HandlerFunc(handlers.ShowCreateForm))).Methods("GET")
 	r.Handle("/task/my", handlers.Throttle(time.Minute, 60, http.HandlerFunc(handlers.ShowMyTasks))).Methods("GET")
@@ -157,25 +158,4 @@ func main() {
 
 	log.Printf("listening on port %s", *port)
 	log.Fatal(http.ListenAndServe("127.0.0.1:"+*port, skipCheck(CSRF(loggingHandler(r)))))
-}
-
-func ZondAuth(f http.Handler) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		var uuid = r.Header.Get("X-Zonduuid")
-
-		if len(uuid) != 36 {
-			http.Error(w, "Not authorized", 401)
-			return
-		}
-
-		isMember, _ := ccredis.Client.SIsMember("zonds", uuid).Result()
-		if !isMember {
-			http.Error(w, "Not authorized", 401)
-			return
-		}
-
-		// TODO: check zond state
-
-		f.ServeHTTP(w, r)
-	}
 }

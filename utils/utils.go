@@ -21,15 +21,16 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-func IPToWSChannels(ip string) string {
+func IPToWSChannels(ip string, gogeoaddr *string) string {
 	var result []string
-	// result = append(result, "IP:"+ip)
+
+	var gogeoAddr = *gogeoaddr
 
 	// TODO: receive addr from start args
-	url := "http://127.0.0.1:9001/?ip=" + ip
+	url := gogeoAddr + "/?ip=" + ip
 
 	spaceClient := http.Client{
-		Timeout: time.Second * 5, // Maximum of 2 secs
+		Timeout: time.Second * 5,
 	}
 
 	req, err := http.NewRequest(http.MethodGet, url, nil)
