@@ -46,7 +46,13 @@ func ZondPong(w http.ResponseWriter, r *http.Request) {
 
 func ZondSub(w http.ResponseWriter, r *http.Request) {
 	var uuid = r.Header.Get("X-ZondUuid")
-	if len(uuid) > 0 {
+	if len(uuid) == 36 {
+		isMember, _ := ccredis.Client.SIsMember("zonds", uuid).Result()
+		if !isMember {
+			http.Error(w, "Not authorized", 401)
+			return
+		}
+
 		log.Println(uuid, "— connected")
 		ccredis.Client.SAdd("Zond-online", uuid)
 		usersCount, _ := ccredis.Client.SCard("Zond-online").Result()
