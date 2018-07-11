@@ -48,30 +48,27 @@ func ZondSub(w http.ResponseWriter, r *http.Request) {
 	var uuid = r.Header.Get("X-ZondUuid")
 	if len(uuid) == 36 {
 		isMember, _ := ccredis.Client.SIsMember("zonds", uuid).Result()
-		if !isMember {
-			http.Error(w, "Not authorized", 401)
-			return
-		}
+		if isMember {
+			log.Println(uuid, "— connected")
+			ccredis.Client.SAdd("Zond-online", uuid)
+			usersCount, _ := ccredis.Client.SCard("Zond-online").Result()
+			fmt.Printf("Active zonds: %d\n", usersCount)
 
-		log.Println(uuid, "— connected")
-		ccredis.Client.SAdd("Zond-online", uuid)
-		usersCount, _ := ccredis.Client.SCard("Zond-online").Result()
-		fmt.Printf("Active zonds: %d\n", usersCount)
-
-		for i := 0; i < 5; i++ {
-			var data = r.Header.Get("X-Channel-Id" + fmt.Sprint(i))
-			if strings.HasPrefix(data, "City") {
-				var city = strings.Join(strings.Split(r.Header.Get("X-Channel-Id"+fmt.Sprint(i)), ":")[1:], ":")
-				ccredis.Client.HSet("zond:city", uuid, city)
-			} else if strings.HasPrefix(data, "Country") {
-				var country = strings.Join(strings.Split(r.Header.Get("X-Channel-Id"+fmt.Sprint(i)), ":")[1:], ":")
-				ccredis.Client.HSet("zond:country", uuid, country)
-			} else if strings.HasPrefix(data, "ASN") {
-				var asn = strings.Join(strings.Split(r.Header.Get("X-Channel-Id"+fmt.Sprint(i)), ":")[1:], ":")
-				ccredis.Client.HSet("zond:asn", uuid, asn)
+			for i := 0; i < 5; i++ {
+				var data = r.Header.Get("X-Channel-Id" + fmt.Sprint(i))
+				if strings.HasPrefix(data, "City") {
+					var city = strings.Join(strings.Split(r.Header.Get("X-Channel-Id"+fmt.Sprint(i)), ":")[1:], ":")
+					ccredis.Client.HSet("zond:city", uuid, city)
+				} else if strings.HasPrefix(data, "Country") {
+					var country = strings.Join(strings.Split(r.Header.Get("X-Channel-Id"+fmt.Sprint(i)), ":")[1:], ":")
+					ccredis.Client.HSet("zond:country", uuid, country)
+				} else if strings.HasPrefix(data, "ASN") {
+					var asn = strings.Join(strings.Split(r.Header.Get("X-Channel-Id"+fmt.Sprint(i)), ":")[1:], ":")
+					ccredis.Client.HSet("zond:asn", uuid, asn)
+				}
 			}
+			utils.GetActiveDestinations()
 		}
-		utils.GetActiveDestinations()
 	}
 }
 

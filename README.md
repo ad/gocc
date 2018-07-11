@@ -5,6 +5,5 @@
 - Postfix
 
 # TODO
-- health-checking (https://github.com/etherlabsio/healthcheck)
 - fix "fixme"
 - do "todo

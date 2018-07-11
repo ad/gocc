@@ -72,20 +72,30 @@ func GetHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func DispatchHandler(w http.ResponseWriter, r *http.Request, gogeoaddr *string) {
-	var uuid = r.Header.Get("X-Zonduuid")
+	var uuid = r.Header.Get("X-ZondUuid")
 	var ip = r.Header.Get("X-Forwarded-For")
-	if len(uuid) > 0 {
-		var add = utils.IPToWSChannels(ip, gogeoaddr)
-		log.Println("/internal/sub/zond:" + uuid + "," + add + "," + ip)
-		w.Header().Add("X-Accel-Redirect", "/internal/sub/zond:"+uuid+","+add+","+ip)
-		w.Header().Add("X-Accel-Buffering", "no")
-	} else {
-		log.Println("/internal/sub/destinations,tasks/done," + ip + "," + Fqdn)
-		w.Header().Add("X-Accel-Redirect", "/internal/sub/destinations,tasks/done,"+ip+","+Fqdn)
-		w.Header().Add("X-Accel-Buffering", "no")
+	if len(uuid) == 36 {
+		isMember, _ := ccredis.Client.SIsMember("zonds", uuid).Result()
+		if isMember {
+			if len(uuid) > 0 {
+				var add = utils.IPToWSChannels(ip, gogeoaddr)
+				log.Println("/internal/sub/zond:" + uuid + "," + add + "," + ip)
+				w.Header().Add("X-Accel-Redirect", "/internal/sub/zond:"+uuid+","+add+","+ip)
+				w.Header().Add("X-Accel-Buffering", "no")
+			} else {
+				log.Println("/internal/sub/destinations,tasks/done," + ip + "," + Fqdn)
+				w.Header().Add("X-Accel-Redirect", "/internal/sub/destinations,tasks/done,"+ip+","+Fqdn)
+				w.Header().Add("X-Accel-Buffering", "no")
+			}
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(""))
+			return
+		}
 	}
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(""))
+
+	log.Println("zond uuid not found: " + uuid + ", ip" + ip)
+	w.Header().Add("X-Accel-Redirect", "/404")
+	w.Header().Add("X-Accel-Buffering", "no")
 }
 
 func ShowVersion(w http.ResponseWriter, r *http.Request) {
