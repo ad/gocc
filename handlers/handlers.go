@@ -29,6 +29,27 @@ func Throttle(period time.Duration, limit int64, f http.Handler) http.Handler {
 	return rateLimiter.Handler(f)
 }
 
+func ZondAuth(f http.Handler) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var uuid = r.Header.Get("X-Zonduuid")
+
+		if len(uuid) != 36 {
+			http.Error(w, "Not authorized", 401)
+			return
+		}
+
+		isMember, _ := ccredis.Client.SIsMember("zonds", uuid).Result()
+		if !isMember {
+			http.Error(w, "Not authorized", 401)
+			return
+		}
+
+		// TODO: check zond state
+
+		f.ServeHTTP(w, r)
+	}
+}
+
 func NotFound(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(404)
 	// tmpl, _ := templ.New("error404", Asset).Parse("error404.html")
