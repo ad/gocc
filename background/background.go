@@ -63,56 +63,68 @@ func ResendOffline() {
 	}
 }
 
-func ResendRepeatable() {
+func ResendRepeatable(fromPast bool) {
+	var backTicks int64 = 36
+	if !fromPast {
+		backTicks = 1
+	}
+
 	t := time.Now().Unix()
-	t300 := strconv.FormatInt(t-(t%300), 10) // modulo to nearest 5-minutes interval, like Mon, 02 Jul 2018 19:55:00 GMT
+	// t300 := strconv.FormatInt(t-(t%300), 10) // modulo to nearest 5-minutes interval, like Mon, 02 Jul 2018 19:55:00 GMT
 
-	tasks, _ := ccredis.Client.SMembers("tasks-repeatable-" + t300).Result()
+	start := t - (t % 300) - ((backTicks - 1) * 300)
+	end := t - (t % 300)
 
-	if len(tasks) > 0 {
-		log.Println("repeatable tasks", tasks)
-		for _, task := range tasks {
-			var action structs.Action
-			err := json.Unmarshal([]byte(task), &action)
-			if err != nil {
-				log.Println(err.Error())
-			} else {
-				if len(action.ParentUUID) == 0 {
-					action.ParentUUID = action.Uuid
+	for i := start; start <= end; start += 300 {
+		// log.Println(i, start, end)
+		t300 := strconv.FormatInt(i, 10)
+		tasks, _ := ccredis.Client.SMembers("tasks-repeatable-" + t300).Result()
+
+		if len(tasks) > 0 {
+			log.Println("repeatable tasks", tasks)
+			for _, task := range tasks {
+				var action structs.Action
+				err := json.Unmarshal([]byte(task), &action)
+				if err != nil {
+					log.Println(err.Error())
+				} else {
+					if len(action.ParentUUID) == 0 {
+						action.ParentUUID = action.Uuid
+					}
+					u, _ := uuid.NewV4()
+					var Uuid = u.String()
+					action.Uuid = Uuid
+					action.Created = t - (t % 300)
+					ccredis.Client.SAdd("tasks-new", Uuid)
+
+					js, _ := json.Marshal(action)
+
+					ccredis.Client.Set("task/"+Uuid, string(js), 0)
+					ccredis.Client.SAdd("user/tasks/"+action.Creator, Uuid)
+
+					t := time.Now()
+
+					repeatTypes := map[string]int{
+						"5min":   300,
+						"10min":  600,
+						"30min":  1800,
+						"1hour":  3600,
+						"3hour":  10800,
+						"6hour":  21600,
+						"12hour": 43200,
+						"1day":   86400,
+						"1week":  604800,
+					}
+					tnew := t.Add(time.Duration(repeatTypes[action.Repeat]) * time.Second).Unix()
+					t300new := (tnew - (tnew % 300))
+					log.Println("next start will be at ", strconv.FormatInt(t300new, 10))
+
+					ccredis.Client.SAdd("tasks-repeatable-"+strconv.FormatInt(t300new, 10), string(js))
+
+					go utils.Post("http://127.0.0.1:80/pub/"+action.Target, string(js))
+
+					ccredis.Client.SRem("tasks-repeatable-"+t300, task)
 				}
-				u, _ := uuid.NewV4()
-				var Uuid = u.String()
-				action.Uuid = Uuid
-				action.Created = t - (t % 300)
-				ccredis.Client.SAdd("tasks-new", Uuid)
-
-				js, _ := json.Marshal(action)
-
-				ccredis.Client.Set("task/"+Uuid, string(js), 0)
-				ccredis.Client.SAdd("user/tasks/"+action.Creator, Uuid)
-
-				t := time.Now()
-
-				repeatTypes := map[string]int{
-					"5min":   300,
-					"10min":  600,
-					"30min":  1800,
-					"1hour":  3600,
-					"3hour":  10800,
-					"6hour":  21600,
-					"12hour": 43200,
-					"1day":   86400,
-					"1week":  604800,
-				}
-				tnew := t.Add(time.Duration(repeatTypes[action.Repeat]) * time.Second).Unix()
-				t300new := (tnew - (tnew % 300))
-				log.Println("next start will be at ", strconv.FormatInt(t300new, 10))
-
-				ccredis.Client.SAdd("tasks-repeatable-"+strconv.FormatInt(t300new, 10), string(js))
-
-				go utils.Post("http://127.0.0.1:80/pub/"+action.Target, string(js))
-
-				ccredis.Client.SRem("tasks-repeatable-"+t300, task)
 			}
 		}
 	}

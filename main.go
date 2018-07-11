@@ -20,7 +20,7 @@ import (
 	"github.com/nu7hatch/gouuid"
 )
 
-const version = "0.3.7"
+const version = "0.3.8"
 
 var port = flag.String("port", "9000", "Port to listen on")
 var gogeoaddr = flag.String("gogeoaddr", "http://127.0.0.1:9001", "Address:port of gogeo instance")
@@ -64,7 +64,7 @@ func main() {
 		for {
 			select {
 			case <-resendRepeatableTicker.C:
-				background.ResendRepeatable()
+				background.ResendRepeatable(false)
 			}
 		}
 	}(resendRepeatableTicker)
@@ -78,8 +78,6 @@ func main() {
 			}
 		}
 	}(getActiveDestinationsTicker)
-
-	go background.ResendOffline()
 
 	r := mux.NewRouter()
 
@@ -157,5 +155,9 @@ func main() {
 	}
 
 	log.Printf("listening on port %s", *port)
+
+	go background.ResendOffline()
+	go background.ResendRepeatable(true)
+
 	log.Fatal(http.ListenAndServe("127.0.0.1:"+*port, skipCheck(CSRF(loggingHandler(r)))))
 }
