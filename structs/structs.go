@@ -25,7 +25,7 @@ type Result struct {
 
 type Zond struct {
 	Creator string `json:"creator"`
-	Uuid    string `json:"uuid"`
+	UUID    string `json:"uuid"`
 	Name    string `json:"name"`
 	Created int64  `json:"created"`
 	Updated int64  `json:"updated"`
@@ -33,7 +33,7 @@ type Zond struct {
 
 type Mngr struct {
 	Creator string `json:"creator"`
-	Uuid    string `json:"uuid"`
+	UUID    string `json:"uuid"`
 	Name    string `json:"name"`
 	Created int64  `json:"created"`
 	Updated int64  `json:"updated"`
