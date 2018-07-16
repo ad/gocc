@@ -1,0 +1,190 @@
+<html>
+
+<head>
+    <title>My Mngrs</title>
+    <style>
+        body {
+            font-family: 'Open Sans', sans-serif;
+        }
+
+        table {
+            border-collapse: collapse;
+            width: 100%;
+        }
+
+        table,
+        th,
+        td {
+            border: 0;
+        }
+
+        th,
+        td {
+            border-bottom: 1px solid #ddd;
+            text-align: left;
+            vertical-align: top;
+            padding: 15px;
+            text-align: left;
+        }
+
+        tr:nth-child(even) {
+            background-color: #f2f2f2;
+        }
+
+        th {
+            height: 50px;
+        }
+
+        .pagination {
+            display: -ms-flexbox;
+            display: flex;
+            padding-left: 0;
+            list-style: none;
+            border-radius: 0.25rem;
+        }
+
+        .pagination-sm a,
+        .pagination-sm span {
+            padding: 0.25rem 0.5rem;
+            font-size: 0.875rem;
+            line-height: 1.5;
+            text-decoration: none;
+        }
+
+        .pagination-sm li:first-child a,
+        .pagination-sm li:first-child span {
+            border-top-left-radius: 0.2rem;
+            border-bottom-left-radius: 0.2rem;
+        }
+
+        .pagination-sm li:last-child a,
+        .pagination-sm li:last-child span {
+            border-top-right-radius: 0.2rem;
+            border-bottom-right-radius: 0.2rem;
+        }
+
+        .pagination a,
+        .pagination span {
+            position: relative;
+            display: block;
+            padding: 0.5rem 0.75rem;
+            margin-left: -1px;
+            line-height: 1.25;
+            color: #007bff;
+            background-color: #fff;
+            border: 1px solid #dee2e6;
+        }
+
+        .pagination a:hover,
+        .pagination span:hover {
+            z-index: 2;
+            color: #0056b3;
+            text-decoration: none;
+            background-color: #e9ecef;
+            border-color: #dee2e6;
+        }
+
+        .pagination a:focus,
+        .pagination span:focus {
+            z-index: 2;
+            outline: 0;
+            box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+        }
+
+        .pagination a:not(:disabled):not(.disabled) {
+            cursor: pointer;
+        }
+
+        .pagination li:first-child a,
+        .pagination li:first-child span {
+            margin-left: 0;
+            border-top-left-radius: 0.25rem;
+            border-bottom-left-radius: 0.25rem;
+        }
+
+        .pagination li:last-child a {
+            border-top-right-radius: 0.25rem;
+            border-bottom-right-radius: 0.25rem;
+        }
+
+        .pagination li.active span {
+            z-index: 1;
+            color: #fff;
+            background-color: #007bff;
+            border-color: #007bff;
+        }
+
+        .pagination li.disabled span {
+            color: #6c757d;
+            pointer-events: none;
+            cursor: auto;
+            background-color: #fff;
+            border-color: #dee2e6;
+        }
+    </style>
+</head>
+
+<body>
+    <div style="float: left;" id="task_create">
+        <form method="POST" action="/task/create" onSubmit="return createTask(document.getElementById('destination').value, document.getElementById('type').value, document.getElementById('ip').value, document.getElementById('repeat').value)">
+            {{ .csrfField }}
+            <select name="destination" id="destination">
+                <optgroup label="Выберите цель" id="">
+                    <option>Любой зонд</option>
+                </optgroup>
+                <optgroup label="Страны" id="countries"></optgroup>
+                <optgroup label="Города" id="cities"></optgroup>
+                <optgroup label="ASN" id="asns"></optgroup>
+                <optgroup label="Зонды" id="zonds"></optgroup>
+            </select>
+            <select name="type" id="type">
+                <option value="ping">PING</option>
+                <option value="head">HEAD</option>
+                <option value="dns">DNS (host or host-rezolver)</option>
+                <option value="traceroute">Traceroute</option>
+            </select>
+            <select name="repeat" id="repeat">
+                <option value="single">don't repeat</option>
+                <option value="5min">5min</option>
+                <option value="10min">10min</option>
+                <option value="30min">30min</option>
+                <option value="1hour">1hour</option>
+                <option value="3hour">3hour</option>
+                <option value="6hour">6hour</option>
+                <option value="12hour">12hour</option>
+                <option value="1day">1day</option>
+                <option value="1week">1week</option>
+            </select>
+            <input type="text" name="ip" id="ip" value="127.0.0.1" placeholder="IP">
+            <input type="submit" value="Do it!">
+        </form>
+    </div>
+    <div style="float: right;" id="mngr_create">
+        <form method="POST" action="/mngr/create" onSubmit="return createMngr(document.getElementById('name').value)">
+            {{ .csrfField }}
+            <input type="text" name="name" id="name" value="" placeholder="mngr name">
+            <input type="submit" value="Add mngr">
+        </form>
+    </div>
+
+    <hr style="clear: both;"> {{ .pager.Render }}
+    <table border="0" id="commands">
+        <tr>
+            <th>Created / Updated</th>
+            <th>UUID</th>
+            <th>Name</th>
+        </tr>
+        {{range .Results}}
+        <tr>
+            <td>{{ .Created }} / {{ .Updated }}</td>
+            <td>{{ .Uuid }}</td>
+            <td>{{ .Name }} </td>
+        </tr>
+        {{else}} Not found {{end}}
+    </table>
+    <div style="position: fixed; bottom: 0; right: 0; padding: 5px; font: 9px sans-serif;">
+        {{.User}}/{{.UserUUID}}@{{.Version}}
+    </div>
+</body>
+
+</html>

@@ -105,9 +105,9 @@ func main() {
 	r.Handle("/zond/sub", handlers.Throttle(time.Minute, 60, http.HandlerFunc(handlers.ZondSub))).Methods("GET")
 	r.Handle("/zond/unsub", handlers.Throttle(time.Minute, 60, http.HandlerFunc(handlers.ZondUnsub))).Methods("GET")
 
-	r.Handle("/mngr/my", handlers.Throttle(time.Minute, 60, http.HandlerFunc(handlers.ShowMyZonds)))
+	r.Handle("/mngr/my", handlers.Throttle(time.Minute, 60, http.HandlerFunc(handlers.ShowMyMngrs)))
 
-	r.Handle("/mngr/task/block", handlers.ZondAuth(http.HandlerFunc(handlers.TaskMngrBlockHandler))).Methods("POST")
+	r.Handle("/mngr/task/block", handlers.MngrAuth(http.HandlerFunc(handlers.TaskMngrBlockHandler))).Methods("POST")
 	r.Handle("/mngr/task/result", handlers.MngrAuth(http.HandlerFunc(handlers.TaskMngrResultHandler))).Methods("POST")
 	r.Handle("/mngr/pong", handlers.Throttle(time.Minute, 5, handlers.MngrAuth(http.HandlerFunc(handlers.MngrPong)))).Methods("POST")
 
@@ -134,7 +134,7 @@ func main() {
 
 	skipCheck := func(h http.Handler) http.Handler {
 		fn := func(w http.ResponseWriter, r *http.Request) {
-			for _, path := range []string{"/zond/task", "/zond/pong"} {
+			for _, path := range []string{"/zond/task", "/zond/pong", "/mngr/task", "/mngr/pong"} {
 				if strings.HasPrefix(r.URL.Path, path) {
 					r = csrf.UnsafeSkipCheck(r)
 				}
@@ -149,10 +149,14 @@ func main() {
 			t := time.Now()
 			h.ServeHTTP(w, r)
 			elapsed := time.Since(t)
+			UUID := r.Header.Get("X-ZondUuid")
+			if UUID == "" {
+				UUID = r.Header.Get("X-MngrUuid")
+			}
 			fmt.Printf(
 				"%s - %s%s - [%s] \"%s %s %s\" %s\n",
 				r.Header.Get("X-Forwarded-For"),
-				r.Header.Get("X-Zonduuid"),
+				UUID,
 				r.Header.Get("X-Forwarded-User"),
 				t.Format("02/Jan/2006:15:04:05 -0700"),
 				r.Method,
