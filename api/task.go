@@ -47,7 +47,7 @@ func TaskCreateHandler(w http.ResponseWriter, r *http.Request) {
 		"measurement": true,
 	}
 
-	if !taskTypes[taskType] {
+	if !taskMainTypes[taskType] {
 		taskMainType = "task"
 	}
 
@@ -142,27 +142,27 @@ func TaskCreateHandler(w http.ResponseWriter, r *http.Request) {
 			repeatType = "single"
 		}
 		u, _ := uuid.NewV4()
-		var Uuid = u.String()
+		var UUID = u.String()
 		var msec = time.Now().Unix()
 
-		ccredis.Client.SAdd("tasks-new", Uuid)
+		ccredis.Client.SAdd("tasks-new", UUID)
 
 		// users, _ := client.SMembers("tasks-new").Result()
 		// usersCount, _ := client.SCard("tasks-new").Result()
 		// log.Println("tasks-new", users, usersCount)
 
-		userUuid, _ := ccredis.Client.Get("user/uuid/" + r.Header.Get("X-Forwarded-User")).Result()
-		if userUuid == "" {
+		userUUID, _ := ccredis.Client.Get("user/uuid/" + r.Header.Get("X-Forwarded-User")).Result()
+		if userUUID == "" {
 			u, _ := uuid.NewV4()
-			userUuid = u.String()
-			ccredis.Client.Set(fmt.Sprintf("user/uuid/%s", r.Header.Get("X-Forwarded-User")), userUuid, 0)
+			userUUID = u.String()
+			ccredis.Client.Set(fmt.Sprintf("user/uuid/%s", r.Header.Get("X-Forwarded-User")), userUUID, 0)
 		}
 
-		action := structs.Action{Action: taskType, Param: ip, Uuid: Uuid, Created: msec, Creator: userUuid, Target: destination, Repeat: repeatType, Type: taskMainType, Count: taskCount}
+		action := structs.Action{Action: taskType, Param: ip, UUID: UUID, Created: msec, Creator: userUUID, Target: destination, Repeat: repeatType, Type: taskMainType, Count: taskCount}
 		js, _ := json.Marshal(action)
 
-		ccredis.Client.Set("task/"+Uuid, string(js), 0)
-		ccredis.Client.SAdd("user/tasks/"+userUuid, Uuid)
+		ccredis.Client.Set("task/"+UUID, string(js), 0)
+		ccredis.Client.SAdd("user/tasks/"+userUUID, UUID)
 		if repeatType != "single" {
 			t := time.Now()
 			tnew := t.Add(time.Duration(repeatTypes[repeatType]) * time.Second).Unix()
@@ -177,7 +177,7 @@ func TaskCreateHandler(w http.ResponseWriter, r *http.Request) {
 		} else {
 			go utils.Post("http://127.0.0.1:80/pub/"+destination, string(js))
 		}
-		log.Println(ip, taskType, Uuid)
+		log.Println(ip, taskType, UUID)
 	} else {
 		// w.Header().Set("X-CSRF-Token", csrf.Token(r))
 		w.WriteHeader(http.StatusBadRequest)
