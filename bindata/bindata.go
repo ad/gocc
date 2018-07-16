@@ -11,7 +11,7 @@
 // templates/zonds.html
 // DO NOT EDIT!
 
-package main
+package bindata
 
 import (
 	"bytes"
