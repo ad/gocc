@@ -100,6 +100,32 @@
             return false;
         }
 
+
+        function createMngr(mngrName) {
+            var xhr = new XMLHttpRequest();
+
+            xhr.open('POST', '/api/mngr/create');
+            xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+            xhr.setRequestHeader('X-Requested-With', 'xmlhttprequest');
+            xhr.withCredentials = true;
+            xhr.setRequestHeader('X-CSRF-Token', document.querySelector('div#mngr_create input[name=token]').value);
+            xhr.onload = function () {
+                if (xhr.status !== 200) {
+                    alert('Request failed.  Returned status of ' + xhr.status);
+                } else {
+                    data = JSON.parse(xhr.responseText);
+                    if (data.status == "ok") {
+                        document.querySelector('#mngrUuid').innerText = data.uuid;
+                    } else {
+                        document.querySelector('#mngrUuid').innerText = data.message;
+                    }
+                }
+            };
+            xhr.send(encodeURI('name=' + mngrName));
+
+            return false;
+        }
+
         function nl2br(str) {
             if (str)
                 return str.replace(/([^>])\n/g, '$1<br/>');
@@ -181,6 +207,14 @@
             <input type="text" name="name" id="name" value="" placeholder="Zond name">
             <input type="submit" value="Add Zond">
             <span id="zondUuid">{{.ZondUUID}}</span>
+        </form>
+    </div>
+    <div style="float: right;" id="mngr_create">
+        <form method="POST" action="/mngr/create" onSubmit="return createMngr(document.getElementById('name').value)">
+            {{ .csrfField }}
+            <input type="text" name="name" id="name" value="" placeholder="Mngr name">
+            <input type="submit" value="Add Mngr">
+            <span id="mngrUuid">{{.MngrUUID}}</span>
         </form>
     </div>
 
