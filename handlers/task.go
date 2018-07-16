@@ -142,6 +142,21 @@ func TaskCreateHandler(w http.ResponseWriter, r *http.Request) {
 			"traceroute": true,
 		}
 
+		taskMainType := r.FormValue("maintype")
+		taskMainTypes := map[string]bool{
+			"task":        true,
+			"measurement": true,
+		}
+
+		if !taskMainTypes[taskType] {
+			taskMainType = "task"
+		}
+
+		taskCount, err := strconv.ParseInt(r.FormValue("taskcount")[0:], 10, 64)
+		if err != nil {
+			taskCount = 1
+		}
+
 		if taskTypes[taskType] {
 			if taskType == "head" {
 				// check http(s)://hostname
@@ -244,7 +259,7 @@ func TaskCreateHandler(w http.ResponseWriter, r *http.Request) {
 				ccredis.Client.Set(fmt.Sprintf("user/uuid/%s", r.Header.Get("X-Forwarded-User")), userUuid, 0)
 			}
 
-			action := structs.Action{Action: taskType, Param: ip, UUID: Uuid, Created: msec, Creator: userUuid, Target: destination, Repeat: repeatType}
+			action := structs.Action{Action: taskType, Param: ip, UUID: Uuid, Created: msec, Creator: userUuid, Target: destination, Repeat: repeatType, Type: taskMainType, Count: taskCount}
 			js, _ := json.Marshal(action)
 
 			ccredis.Client.Set("task/"+Uuid, string(js), 0)
@@ -258,7 +273,11 @@ func TaskCreateHandler(w http.ResponseWriter, r *http.Request) {
 				ccredis.Client.SAdd("tasks-repeatable-"+strconv.FormatInt(t300, 10), string(js))
 			}
 
-			go utils.Post("http://127.0.0.1:80/pub/"+destination, string(js))
+			if taskMainType != "task" {
+				go utils.Post("http://127.0.0.1:80/pub/mngrtasks", string(js))
+			} else {
+				go utils.Post("http://127.0.0.1:80/pub/"+destination, string(js))
+			}
 
 			log.Println(ip, taskType, Uuid)
 		} else {
