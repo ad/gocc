@@ -20,7 +20,7 @@ import (
 	"github.com/nu7hatch/gouuid"
 )
 
-const version = "0.3.9"
+const version = "0.4.0"
 
 var port = flag.String("port", "9000", "Port to listen on")
 var gogeoaddr = flag.String("gogeoaddr", "http://127.0.0.1:9001", "Address:port of gogeo instance")
@@ -86,6 +86,7 @@ func main() {
 
 	r.Handle("/api/task/create", handlers.Throttle(time.Minute, 10, http.HandlerFunc(api.TaskCreateHandler))).Methods("POST")
 	r.Handle("/api/zond/create", handlers.Throttle(time.Minute, 10, http.HandlerFunc(api.ZondCreateHandler))).Methods("POST")
+	r.Handle("/api/mngr/create", handlers.Throttle(time.Minute, 10, http.HandlerFunc(api.MngrCreateHandler))).Methods("POST")
 
 	r.HandleFunc("/dispatch/", func(w http.ResponseWriter, r *http.Request) { handlers.DispatchHandler(w, r, gogeoaddr) })
 
@@ -97,12 +98,21 @@ func main() {
 
 	r.Handle("/zond/my", handlers.Throttle(time.Minute, 60, http.HandlerFunc(handlers.ShowMyZonds)))
 
-	r.Handle("/zond/task/block", handlers.Throttle(time.Minute, 60, handlers.ZondAuth(http.HandlerFunc(handlers.TaskBlockHandler)))).Methods("POST")
-	r.Handle("/zond/task/result", handlers.Throttle(time.Minute, 60, handlers.ZondAuth(http.HandlerFunc(handlers.TaskResultHandler)))).Methods("POST")
+	r.Handle("/zond/task/block", handlers.Throttle(time.Minute, 60, handlers.ZondAuth(http.HandlerFunc(handlers.TaskZondBlockHandler)))).Methods("POST")
+	r.Handle("/zond/task/result", handlers.Throttle(time.Minute, 60, handlers.ZondAuth(http.HandlerFunc(handlers.TaskZondResultHandler)))).Methods("POST")
 	r.Handle("/zond/pong", handlers.Throttle(time.Minute, 5, handlers.ZondAuth(http.HandlerFunc(handlers.ZondPong)))).Methods("POST")
 
 	r.Handle("/zond/sub", handlers.Throttle(time.Minute, 60, http.HandlerFunc(handlers.ZondSub))).Methods("GET")
 	r.Handle("/zond/unsub", handlers.Throttle(time.Minute, 60, http.HandlerFunc(handlers.ZondUnsub))).Methods("GET")
+
+	r.Handle("/mngr/my", handlers.Throttle(time.Minute, 60, http.HandlerFunc(handlers.ShowMyZonds)))
+
+	r.Handle("/mngr/task/block", handlers.ZondAuth(http.HandlerFunc(handlers.TaskMngrBlockHandler))).Methods("POST")
+	r.Handle("/mngr/task/result", handlers.MngrAuth(http.HandlerFunc(handlers.TaskMngrResultHandler))).Methods("POST")
+	r.Handle("/mngr/pong", handlers.Throttle(time.Minute, 5, handlers.MngrAuth(http.HandlerFunc(handlers.MngrPong)))).Methods("POST")
+
+	r.Handle("/mngr/sub", handlers.Throttle(time.Minute, 60, http.HandlerFunc(handlers.MngrSub))).Methods("GET")
+	r.Handle("/mngr/unsub", handlers.Throttle(time.Minute, 60, http.HandlerFunc(handlers.MngrUnsub))).Methods("GET")
 
 	r.Handle("/user", handlers.Throttle(time.Minute, 60, http.HandlerFunc(handlers.UserInfoHandler))).Methods("GET")
 	r.Handle("/user/auth", handlers.Throttle(time.Minute, 60, http.HandlerFunc(handlers.UserAuthHandler)))
