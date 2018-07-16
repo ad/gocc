@@ -92,18 +92,18 @@ func ResendRepeatable(fromPast bool) {
 					log.Println(err.Error())
 				} else {
 					if len(action.ParentUUID) == 0 {
-						action.ParentUUID = action.Uuid
+						action.ParentUUID = action.UUID
 					}
 					u, _ := uuid.NewV4()
-					var Uuid = u.String()
-					action.Uuid = Uuid
+					var UUID = u.String()
+					action.UUID = UUID
 					action.Created = t - (t % 300)
-					ccredis.Client.SAdd("tasks-new", Uuid)
+					ccredis.Client.SAdd("tasks-new", UUID)
 
 					js, _ := json.Marshal(action)
 
-					ccredis.Client.Set("task/"+Uuid, string(js), 0)
-					ccredis.Client.SAdd("user/tasks/"+action.Creator, Uuid)
+					ccredis.Client.Set("task/"+UUID, string(js), 0)
+					ccredis.Client.SAdd("user/tasks/"+action.Creator, UUID)
 
 					t := time.Now()
 
@@ -142,11 +142,11 @@ func CheckAlive() {
 			// log.Println(zond, tp)
 			if tp == "" {
 				u, _ := uuid.NewV4()
-				var Uuid = u.String()
+				var UUID = u.String()
 				var msec = time.Now().Unix()
-				action := structs.Action{Action: "alive", Uuid: Uuid, Created: msec}
+				action := structs.Action{Action: "alive", UUID: UUID, Created: msec}
 				js, _ := json.Marshal(action)
-				ccredis.Client.Set(zond+"/alive", Uuid, 90*time.Second)
+				ccredis.Client.Set(zond+"/alive", UUID, 90*time.Second)
 				go utils.Post("http://127.0.0.1:80/pub/zond:"+zond, string(js))
 			} else {
 				log.Println(zond, "— removed")
