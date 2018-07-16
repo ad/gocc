@@ -41,17 +41,16 @@ func TaskCreateHandler(w http.ResponseWriter, r *http.Request) {
 		"traceroute": true,
 	}
 
-	taskMainType := r.FormValue("maintype")
+	taskMainType := "task"
 	taskMainTypes := map[string]bool{
 		"task":        true,
 		"measurement": true,
 	}
-
-	if !taskMainTypes[taskType] {
-		taskMainType = "task"
+	if taskMainTypes[r.FormValue("maintype")] {
+		taskMainType = r.FormValue("maintype")
 	}
 
-	taskCount, err := strconv.ParseInt(r.FormValue("taskcount")[0:], 10, 64)
+	taskCount, err := strconv.ParseInt(r.FormValue("taskcount"), 10, 64)
 	if err != nil {
 		taskCount = 1
 	}
@@ -158,7 +157,7 @@ func TaskCreateHandler(w http.ResponseWriter, r *http.Request) {
 			ccredis.Client.Set(fmt.Sprintf("user/uuid/%s", r.Header.Get("X-Forwarded-User")), userUUID, 0)
 		}
 
-		action := structs.Action{Action: taskType, Param: ip, UUID: UUID, Created: msec, Creator: userUUID, Target: destination, Repeat: repeatType, Type: taskMainType, Count: taskCount}
+		action := structs.Action{Action: taskType, Param: ip, UUID: UUID, Created: msec, Creator: userUUID, Target: destination, Repeat: repeatType, Type: taskMainType, Count: taskCount, TimeOut: 60}
 		js, _ := json.Marshal(action)
 
 		ccredis.Client.Set("task/"+UUID, string(js), 0)

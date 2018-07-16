@@ -142,17 +142,16 @@ func TaskCreateHandler(w http.ResponseWriter, r *http.Request) {
 			"traceroute": true,
 		}
 
-		taskMainType := r.FormValue("maintype")
+		taskMainType := "task"
 		taskMainTypes := map[string]bool{
 			"task":        true,
 			"measurement": true,
 		}
-
-		if !taskMainTypes[taskType] {
-			taskMainType = "task"
+		if taskMainTypes[r.FormValue("maintype")] {
+			taskMainType = r.FormValue("maintype")
 		}
 
-		taskCount, err := strconv.ParseInt(r.FormValue("taskcount")[0:], 10, 64)
+		taskCount, err := strconv.ParseInt(r.FormValue("taskcount"), 10, 64)
 		if err != nil {
 			taskCount = 1
 		}
