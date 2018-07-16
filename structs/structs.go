@@ -1,17 +1,21 @@
 package structs
 
 type Action struct {
+	ZondUUID   string `json:"zond"`
+	MngrUUID   string `json:"manager"`
 	Creator    string `json:"creator"`
-	ZondUuid   string `json:"zond"`
+	Type       string `json:"type"` // task/measurement
+	Count      int64  `json:"count"`
+	TimeOut    int64  `json:"timeout"`
 	Action     string `json:"action"`
 	Param      string `json:"param"`
 	Result     string `json:"result"`
-	Uuid       string `json:"uuid"`
 	ParentUUID string `json:"parent"`
 	Created    int64  `json:"created"`
 	Updated    int64  `json:"updated"`
 	Target     string `json:"target"`
 	Repeat     string `json:"repeat"`
+	UUID       string `json:"uuid"`
 }
 
 type Result struct {
@@ -25,6 +29,15 @@ type Zond struct {
 	Name    string `json:"name"`
 	Created int64  `json:"created"`
 	Updated int64  `json:"updated"`
+}
+
+type Mngr struct {
+	Creator string `json:"creator"`
+	Uuid    string `json:"uuid"`
+	Name    string `json:"name"`
+	Created int64  `json:"created"`
+	Updated int64  `json:"updated"`
+	IP      string `json:"ip"`
 }
 
 type Channels struct {
