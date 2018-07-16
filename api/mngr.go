@@ -43,7 +43,7 @@ func MngrCreateHandler(w http.ResponseWriter, r *http.Request) {
 
 	// if r.Header.Get("X-Requested-With") == "xmlhttprequest" {
 	// w.Header().Set("X-CSRF-Token", csrf.Token(r))
-	fmt.Fprintf(w, `{"status": "ok", "uuid": "%s"}`, Uuid)
+	fmt.Fprintf(w, `{"status": "ok", "uuid": "%s"}`, UUID)
 	// } else {
 	// 	ShowCreateForm(w, r, Uuid)
 	// }
