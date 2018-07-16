@@ -33,9 +33,9 @@ func ZondPong(w http.ResponseWriter, r *http.Request) {
 				log.Println(err.Error())
 			}
 			// log.Println("pong from", t.ZondUuid, r.Header.Get("X-Forwarded-For"))
-			tp, _ := ccredis.Client.Get(t.ZondUuid + "/alive").Result()
-			if t.Uuid == tp {
-				ccredis.Client.Del(t.ZondUuid + "/alive")
+			tp, _ := ccredis.Client.Get(t.ZondUUID + "/alive").Result()
+			if t.UUID == tp {
+				ccredis.Client.Del(t.ZondUUID + "/alive")
 				// log.Print(t.ZondUuid, "Zond pong")
 				// w.Header().Set("X-CSRF-Token", csrf.Token(r))
 				fmt.Fprintf(w, `{"status": "ok"}`)

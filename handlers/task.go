@@ -108,7 +108,7 @@ func TaskRepeatableRemoveHandler(w http.ResponseWriter, r *http.Request) {
 					if err != nil {
 						log.Println(err.Error())
 					}
-					if t.Uuid == uuid {
+					if t.UUID == uuid {
 						ccredis.Client.SRem(val, item)
 					}
 				}
@@ -244,7 +244,7 @@ func TaskCreateHandler(w http.ResponseWriter, r *http.Request) {
 				ccredis.Client.Set(fmt.Sprintf("user/uuid/%s", r.Header.Get("X-Forwarded-User")), userUuid, 0)
 			}
 
-			action := structs.Action{Action: taskType, Param: ip, Uuid: Uuid, Created: msec, Creator: userUuid, Target: destination, Repeat: repeatType}
+			action := structs.Action{Action: taskType, Param: ip, UUID: Uuid, Created: msec, Creator: userUuid, Target: destination, Repeat: repeatType}
 			js, _ := json.Marshal(action)
 
 			ccredis.Client.Set("task/"+Uuid, string(js), 0)
@@ -278,7 +278,7 @@ func TaskCreateHandler(w http.ResponseWriter, r *http.Request) {
 
 }
 
-func TaskBlockHandler(w http.ResponseWriter, r *http.Request) {
+func TaskZondBlockHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "POST" {
 		body, err := ioutil.ReadAll(r.Body)
 		if err != nil {
@@ -290,19 +290,19 @@ func TaskBlockHandler(w http.ResponseWriter, r *http.Request) {
 			if err != nil {
 				log.Println(err.Error())
 			}
-			log.Println(t.ZondUuid, "wants to", t.Action, t.Uuid)
-			zondBusy, err := ccredis.Client.SIsMember("zond-busy", t.ZondUuid).Result()
+			log.Println(t.ZondUUID, "wants to", t.Action, t.UUID)
+			zondBusy, err := ccredis.Client.SIsMember("zond-busy", t.ZondUUID).Result()
 			if (err != nil) || (zondBusy != true) {
-				count := ccredis.Client.SRem("tasks-new", t.Uuid)
+				count := ccredis.Client.SRem("tasks-new", t.UUID)
 				if count.Val() == int64(1) {
-					ccredis.Client.SAdd("tasks-process", t.ZondUuid+"/"+t.Uuid)
-					ccredis.Client.SAdd("zond-busy", t.ZondUuid)
-					ccredis.Client.Set(t.ZondUuid+"/"+t.Uuid+"/processing", "1", 60*time.Second)
-					log.Println(t.ZondUuid, `{"status": "ok", "message": "ok"}`)
+					ccredis.Client.SAdd("tasks-process", t.ZondUUID+"/"+t.UUID)
+					ccredis.Client.SAdd("zond-busy", t.ZondUUID)
+					ccredis.Client.Set(t.ZondUUID+"/"+t.UUID+"/processing", "1", 60*time.Second)
+					log.Println(t.ZondUUID, `{"status": "ok", "message": "ok"}`)
 					// w.Header().Set("X-CSRF-Token", csrf.Token(r))
 					fmt.Fprintf(w, `{"status": "ok", "message": "ok"}`)
 				} else {
-					log.Println(t.ZondUuid, `{"status": "error", "message": "task not found"}`)
+					log.Println(t.ZondUUID, `{"status": "error", "message": "task not found"}`)
 					// w.Header().Set("X-CSRF-Token", csrf.Token(r))
 					fmt.Fprintf(w, `{"status": "error", "message": "task not found"}`)
 				}
@@ -317,7 +317,7 @@ func TaskBlockHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func TaskResultHandler(w http.ResponseWriter, r *http.Request) {
+func TaskZondResultHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "POST" {
 		body, err := ioutil.ReadAll(r.Body)
 		if err != nil {
@@ -329,24 +329,24 @@ func TaskResultHandler(w http.ResponseWriter, r *http.Request) {
 			if err != nil {
 				log.Println(err.Error())
 			}
-			log.Println(t.ZondUuid, "wants to", t.Action, t.Uuid)
-			ccredis.Client.SRem("zond-busy", t.ZondUuid)
+			log.Println(t.ZondUUID, "wants to", t.Action, t.UUID)
+			ccredis.Client.SRem("zond-busy", t.ZondUUID)
 
 			if t.Action == "result" {
-				taskProcessing, err := ccredis.Client.SIsMember("tasks-process", t.ZondUuid+"/"+t.Uuid).Result()
+				taskProcessing, err := ccredis.Client.SIsMember("tasks-process", t.ZondUUID+"/"+t.UUID).Result()
 				if (err != nil) || (taskProcessing != true) {
 					log.Println(`{"status": "error", "message": "task not found"}`)
 					// w.Header().Set("X-CSRF-Token", csrf.Token(r))
 					fmt.Fprintf(w, `{"status": "error", "message": "task not found"}`)
 				} else {
-					count := ccredis.Client.SRem("tasks-process", t.ZondUuid+"/"+t.Uuid)
+					count := ccredis.Client.SRem("tasks-process", t.ZondUUID+"/"+t.UUID)
 					if count.Val() == int64(1) {
-						ccredis.Client.SAdd("tasks-done", t.ZondUuid+"/"+t.Uuid+"/"+t.Result)
-						log.Println(t.ZondUuid, `{"status": "ok", "message": "ok"}`)
+						ccredis.Client.SAdd("tasks-done", t.ZondUUID+"/"+t.UUID+"/"+t.Result)
+						log.Println(t.ZondUUID, `{"status": "ok", "message": "ok"}`)
 						// w.Header().Set("X-CSRF-Token", csrf.Token(r))
 						fmt.Fprintf(w, `{"status": "ok", "message": "ok"}`)
 
-						js, _ := ccredis.Client.Get("task/" + t.Uuid).Result()
+						js, _ := ccredis.Client.Get("task/" + t.UUID).Result()
 						// log.Println(js)
 						var task structs.Action
 						err = json.Unmarshal([]byte(js), &task)
@@ -354,7 +354,7 @@ func TaskResultHandler(w http.ResponseWriter, r *http.Request) {
 							log.Println(err.Error())
 						}
 						task.Result = t.Result
-						task.ZondUuid = t.ZondUuid
+						task.ZondUUID = t.ZondUUID
 						task.Updated = time.Now().Unix()
 
 						jsonBody, err := json.Marshal(task)
@@ -362,10 +362,100 @@ func TaskResultHandler(w http.ResponseWriter, r *http.Request) {
 							http.Error(w, "Error converting results to json",
 								http.StatusInternalServerError)
 						}
-						ccredis.Client.Set("task/"+t.Uuid, jsonBody, 0)
+						ccredis.Client.Set("task/"+t.UUID, jsonBody, 0)
 						go utils.Post("http://127.0.0.1:80/pub/tasks/done", string(jsonBody))
 					} else {
-						log.Println(t.ZondUuid, `{"status": "error", "message": "task not found"}`)
+						log.Println(t.ZondUUID, `{"status": "error", "message": "task not found"}`)
+						// w.Header().Set("X-CSRF-Token", csrf.Token(r))
+						fmt.Fprintf(w, `{"status": "error", "message": "task not found"}`)
+					}
+				}
+			}
+		}
+	} else {
+		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
+	}
+}
+
+func TaskMngrBlockHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method == "POST" {
+		body, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			http.Error(w, "Error reading request body",
+				http.StatusInternalServerError)
+		} else {
+			var t structs.Action
+			err := json.Unmarshal(body, &t)
+			if err != nil {
+				log.Println(err.Error())
+			}
+			log.Println(t.MngrUUID, "wants to", t.Action, t.UUID)
+
+			count := ccredis.Client.SRem("tasks-new", t.UUID)
+			if count.Val() == int64(1) {
+				ccredis.Client.SAdd("tasks-process", t.MngrUUID+"/"+t.UUID)
+				ccredis.Client.Set(t.MngrUUID+"/"+t.UUID+"/processing", "1", 300*time.Second) // FIXME: time
+				log.Println(t.MngrUUID, `{"status": "ok", "message": "ok"}`)
+				// w.Header().Set("X-CSRF-Token", csrf.Token(r))
+				fmt.Fprintf(w, `{"status": "ok", "message": "ok"}`)
+			} else {
+				log.Println(t.MngrUUID, `{"status": "error", "message": "task not found"}`)
+				// w.Header().Set("X-CSRF-Token", csrf.Token(r))
+				fmt.Fprintf(w, `{"status": "error", "message": "task not found"}`)
+			}
+		}
+	} else {
+		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
+	}
+}
+
+func TaskMngrResultHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method == "POST" {
+		body, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			http.Error(w, "Error reading request body",
+				http.StatusInternalServerError)
+		} else {
+			var t structs.Action
+			err := json.Unmarshal(body, &t)
+			if err != nil {
+				log.Println(err.Error())
+			}
+			log.Println(t.MngrUUID, "wants to", t.Action, t.UUID)
+			if t.Action == "result" {
+				taskProcessing, err := ccredis.Client.SIsMember("tasks-process", t.MngrUUID+"/"+t.UUID).Result()
+				if (err != nil) || (taskProcessing != true) {
+					log.Println(`{"status": "error", "message": "task not found"}`)
+					// w.Header().Set("X-CSRF-Token", csrf.Token(r))
+					fmt.Fprintf(w, `{"status": "error", "message": "task not found"}`)
+				} else {
+					count := ccredis.Client.SRem("tasks-process", t.MngrUUID+"/"+t.UUID)
+					if count.Val() == int64(1) {
+						ccredis.Client.SAdd("tasks-done", t.MngrUUID+"/"+t.UUID+"/"+t.Result)
+						log.Println(t.MngrUUID, `{"status": "ok", "message": "ok"}`)
+						// w.Header().Set("X-CSRF-Token", csrf.Token(r))
+						fmt.Fprintf(w, `{"status": "ok", "message": "ok"}`)
+
+						js, _ := ccredis.Client.Get("task/" + t.UUID).Result()
+						// log.Println(js)
+						var task structs.Action
+						err = json.Unmarshal([]byte(js), &task)
+						if err != nil {
+							log.Println(err.Error())
+						}
+						task.Result = t.Result
+						task.MngrUUID = t.MngrUUID
+						task.Updated = time.Now().Unix()
+
+						jsonBody, err := json.Marshal(task)
+						if err != nil {
+							http.Error(w, "Error converting results to json",
+								http.StatusInternalServerError)
+						}
+						ccredis.Client.Set("task/"+t.UUID, jsonBody, 0)
+						go utils.Post("http://127.0.0.1:80/pub/tasks/done", string(jsonBody))
+					} else {
+						log.Println(t.MngrUUID, `{"status": "error", "message": "task not found"}`)
 						// w.Header().Set("X-CSRF-Token", csrf.Token(r))
 						fmt.Fprintf(w, `{"status": "error", "message": "task not found"}`)
 					}

@@ -31,7 +31,7 @@ func Throttle(period time.Duration, limit int64, f http.Handler) http.Handler {
 
 func ZondAuth(f http.Handler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var uuid = r.Header.Get("X-Zonduuid")
+		var uuid = r.Header.Get("X-ZondUuid")
 
 		if len(uuid) != 36 {
 			http.Error(w, "Not authorized", 401)
@@ -39,6 +39,27 @@ func ZondAuth(f http.Handler) http.HandlerFunc {
 		}
 
 		isMember, _ := ccredis.Client.SIsMember("zonds", uuid).Result()
+		if !isMember {
+			http.Error(w, "Not authorized", 401)
+			return
+		}
+
+		// TODO: check zond state
+
+		f.ServeHTTP(w, r)
+	}
+}
+
+func MngrAuth(f http.Handler) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var uuid = r.Header.Get("X-MngrUuid")
+
+		if len(uuid) != 36 {
+			http.Error(w, "Not authorized", 401)
+			return
+		}
+
+		isMember, _ := ccredis.Client.SIsMember("mngrs", uuid).Result()
 		if !isMember {
 			http.Error(w, "Not authorized", 401)
 			return
@@ -73,6 +94,7 @@ func GetHandler(w http.ResponseWriter, r *http.Request) {
 
 func DispatchHandler(w http.ResponseWriter, r *http.Request, gogeoaddr *string) {
 	var uuid = r.Header.Get("X-ZondUuid")
+	var mngruuid = r.Header.Get("X-MngrUuid")
 	var ip = r.Header.Get("X-Forwarded-For")
 	if len(uuid) == 36 {
 		isMember, _ := ccredis.Client.SIsMember("zonds", uuid).Result()
@@ -82,6 +104,19 @@ func DispatchHandler(w http.ResponseWriter, r *http.Request, gogeoaddr *string) 
 			w.Header().Add("X-Accel-Redirect", "/internal/sub/zond:"+uuid+","+add+","+ip)
 		} else {
 			log.Println("zond uuid not found: " + uuid + ", ip" + ip)
+			w.WriteHeader(http.StatusBadRequest)
+			w.Header().Add("X-Accel-Redirect", "/404")
+			w.Header().Add("X-Accel-Buffering", "no")
+			w.Write([]byte(""))
+			return
+		}
+	} else if len(mngruuid) == 36 {
+		isMember, _ := ccredis.Client.SIsMember("mngrs", mngruuid).Result()
+		if isMember {
+			log.Println("/internal/sub/mngrtasks,mngr" + mngruuid + "," + ip)
+			w.Header().Add("X-Accel-Redirect", "/internal/sub/mngrtasks,mngr"+mngruuid+","+ip)
+		} else {
+			log.Println("mngr uuid not found: " + mngruuid + ", ip" + ip)
 			w.WriteHeader(http.StatusBadRequest)
 			w.Header().Add("X-Accel-Redirect", "/404")
 			w.Header().Add("X-Accel-Buffering", "no")
