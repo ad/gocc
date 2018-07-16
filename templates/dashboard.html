@@ -89,7 +89,7 @@
                 } else {
                     data = JSON.parse(xhr.responseText);
                     if (data.status == "ok") {
-                        document.querySelector('#zondUuid').innerText = data.uuid;
+                        document.querySelector('#zondUuid').innerText = data.UUID;
                     } else {
                         document.querySelector('#zondUuid').innerText = data.message;
                     }
@@ -114,7 +114,7 @@
                 } else {
                     data = JSON.parse(xhr.responseText);
                     if (data.status == "ok") {
-                        document.querySelector('#mngrUuid').innerText = data.uuid;
+                        document.querySelector('#mngrUuid').innerText = data.UUID;
                     } else {
                         document.querySelector('#mngrUuid').innerText = data.message;
                     }
@@ -201,7 +201,7 @@
         </form>
     </div>
     <div style="float: right;" id="zond_create">
-        <form method="POST" action="/zond/create" onSubmit="return createZond(document.getElementById('name').value)">
+        <form method="POST" action="/api/zond/create" onSubmit="return createZond(document.getElementById('name').value)">
             {{ .csrfField }}
             <input type="text" name="name" id="name" value="" placeholder="Zond name">
             <input type="submit" value="Add Zond">
@@ -209,7 +209,7 @@
         </form>
     </div>
     <div style="float: right;" id="mngr_create">
-        <form method="POST" action="/mngr/create" onSubmit="return createMngr(document.getElementById('name').value)">
+        <form method="POST" action="/api/mngr/create" onSubmit="return createMngr(document.getElementById('name').value)">
             {{ .csrfField }}
             <input type="text" name="name" id="name" value="" placeholder="Mngr name">
             <input type="submit" value="Add Mngr">

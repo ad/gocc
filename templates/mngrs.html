@@ -160,7 +160,7 @@
         </form>
     </div>
     <div style="float: right;" id="mngr_create">
-        <form method="POST" action="/mngr/create" onSubmit="return createMngr(document.getElementById('name').value)">
+        <form method="POST" action="/api/mngr/create" onSubmit="return createMngr(document.getElementById('name').value)">
             {{ .csrfField }}
             <input type="text" name="name" id="name" value="" placeholder="mngr name">
             <input type="submit" value="Add mngr">
