@@ -15,9 +15,10 @@ import (
 	"github.com/ad/gocc/selfupdate"
 	"github.com/ad/gocc/utils"
 
+	uuid "github.com/nu7hatch/gouuid"
+
 	"github.com/gorilla/csrf"
 	"github.com/gorilla/mux"
-	"github.com/nu7hatch/gouuid"
 )
 
 const version = "0.4.13"
@@ -83,6 +84,7 @@ func main() {
 
 	r.Handle("/", handlers.Throttle(time.Minute, 60, http.HandlerFunc(handlers.GetHandler))).Methods("GET")
 	r.Handle("/auth", http.HandlerFunc(handlers.AuthHandler))
+	r.Handle("/token", http.HandlerFunc(handlers.TokenHandler))
 
 	r.Handle("/api/task/create", handlers.Throttle(time.Minute, 10, http.HandlerFunc(api.TaskCreateHandler))).Methods("POST")
 	r.Handle("/api/zond/create", handlers.Throttle(time.Minute, 10, http.HandlerFunc(api.ZondCreateHandler))).Methods("POST")

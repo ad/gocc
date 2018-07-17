@@ -10,6 +10,8 @@ import (
 	"github.com/ad/gocc/ccredis"
 	"github.com/ad/gocc/utils"
 
+	"github.com/gorilla/csrf"
+
 	"github.com/ulule/limiter"
 	"github.com/ulule/limiter/drivers/middleware/stdlib"
 	"github.com/ulule/limiter/drivers/store/memory"
@@ -75,6 +77,11 @@ func NotFound(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(404)
 	// tmpl, _ := templ.New("error404", Asset).Parse("error404.html")
 	// tmpl.Execute(w, nil)
+}
+
+func TokenHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("X-CSRF-Token", csrf.Token(r))
+	w.Write([]byte(""))
 }
 
 func GetHandler(w http.ResponseWriter, r *http.Request) {
