@@ -59,8 +59,12 @@ func ResendOffline() {
 			if err != nil {
 				log.Println(err.Error())
 			} else {
-				go utils.Post("http://127.0.0.1:80/pub/"+action.Target, string(js))
-				log.Println(action)
+				if action.Result != "" {
+					ccredis.Client.SRem("tasks-new", action.UUID)
+				} else {
+					go utils.Post("http://127.0.0.1:80/pub/"+action.Target, string(js))
+					log.Println(action)
+				}
 			}
 		}
 	}
