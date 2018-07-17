@@ -32,7 +32,7 @@
 
                 var dt = new Date(event.updated * 1000).toLocaleString()
                 cell1.innerHTML = dt;
-                cell2.innerHTML = '<span class="dest">' + event.creator + '/' + event.zond + event.mngr + "</span>";
+                cell2.innerHTML = '<span class="dest">' + event.creator + '/' + event.zond + event.manager + "</span>";
                 cell3.innerHTML = '<span class="action">' + event.action + '</span> <span class="param">' + event.param + '</span> <span class="repeat">' + event.repeat + '</span>';
                 cell4.innerHTML = "<pre>" + nl2br(event.result) + "</pre>";
 
