@@ -21,7 +21,7 @@ import (
 	"github.com/gorilla/mux"
 )
 
-const version = "0.4.13"
+const version = "0.4.14"
 
 var port = flag.String("port", "9000", "Port to listen on")
 var gogeoaddr = flag.String("gogeoaddr", "http://127.0.0.1:9001", "Address:port of gogeo instance")
@@ -84,7 +84,7 @@ func main() {
 
 	r.Handle("/", handlers.Throttle(time.Minute, 60, http.HandlerFunc(handlers.GetHandler))).Methods("GET")
 	r.Handle("/auth", http.HandlerFunc(handlers.AuthHandler))
-	r.Handle("/token", http.HandlerFunc(handlers.TokenHandler))
+	r.Handle("/token", handlers.Throttle(time.Minute, 60, http.HandlerFunc(handlers.TokenHandler)))
 
 	r.Handle("/api/task/create", handlers.Throttle(time.Minute, 10, http.HandlerFunc(api.TaskCreateHandler))).Methods("POST")
 	r.Handle("/api/zond/create", handlers.Throttle(time.Minute, 10, http.HandlerFunc(api.ZondCreateHandler))).Methods("POST")
