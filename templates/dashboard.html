@@ -32,7 +32,7 @@
 
                 var dt = new Date(event.updated * 1000).toLocaleString()
                 cell1.innerHTML = dt;
-                cell2.innerHTML = '<span class="dest">' + event.creator + '/' + event.zond + "</span>";
+                cell2.innerHTML = '<span class="dest">' + event.creator + '/' + event.zond + event.mngr + "</span>";
                 cell3.innerHTML = '<span class="action">' + event.action + '</span> <span class="param">' + event.param + '</span> <span class="repeat">' + event.repeat + '</span>';
                 cell4.innerHTML = "<pre>" + nl2br(event.result) + "</pre>";
 
@@ -57,7 +57,7 @@
             }
         }
 
-        function createTask(dest, taskType, taskIp, repeatType) {
+        function createTask(dest, taskType, taskIp, repeatType, maintype, taskcount) {
             var xhr = new XMLHttpRequest();
 
             xhr.open('POST', '/api/task/create');
@@ -70,7 +70,7 @@
                     alert('Request failed.  Returned status of ' + xhr.status);
                 }
             };
-            xhr.send(encodeURI('dest=' + dest + '&type=' + taskType + '&ip=' + taskIp + '&repeat=' + repeatType));
+            xhr.send(encodeURI('dest=' + dest + '&type=' + taskType + '&ip=' + taskIp + '&repeat=' + repeatType + '&maintype=' + maintype + '&taskcount=' + taskcount));
 
             return false;
         }
@@ -167,7 +167,7 @@
 
 <body>
     <div style="float: left;" id="task_create">
-        <form method="POST" action="/task/create" onSubmit="return createTask(document.getElementById('destination').value, document.getElementById('type').value, document.getElementById('ip').value, document.getElementById('repeat').value)">
+        <form method="POST" action="/task/create" onSubmit="return createTask(document.getElementById('destination').value, document.getElementById('type').value, document.getElementById('ip').value, document.getElementById('repeat').value, document.getElementById('maintype').value, document.getElementById('taskcount').value)">
             {{ .csrfField }}
             <select name="destination" id="destination">
                 <optgroup label="Выберите цель" id="">
@@ -196,6 +196,11 @@
                 <option value="1day">1day</option>
                 <option value="1week">1week</option>
             </select>
+            <select name="maintype" id="maintype">
+                <option value="task">task</option>
+                <option value="measurement">measurement</option>
+            </select>
+            <input type="text" name="taskcount" id="taskcount" value="1" placeholder="Count of measurements">
             <input type="text" name="ip" id="ip" value="127.0.0.1" placeholder="IP">
             <input type="submit" value="Do it!">
         </form>
