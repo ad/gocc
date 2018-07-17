@@ -36,9 +36,9 @@
                 cell3.innerHTML = '<span class="action">' + event.action + '</span> <span class="param">' + event.param + '</span> <span class="repeat">' + event.repeat + '</span>';
                 cell4.innerHTML = "<pre>" + nl2br(event.result) + "</pre>";
 
-                row.addEventListener("click", function (event) {
-                    createTask(this.querySelector('.dest').innerHTML, this.querySelector('.action').innerHTML, this.querySelector('.param').innerHTML, this.querySelector('.repeat').innerHTML);
-                }, false);
+                // row.addEventListener("click", function (event) {
+                //     createTask(this.querySelector('.dest').innerHTML, this.querySelector('.action').innerHTML, this.querySelector('.param').innerHTML, this.querySelector('.repeat').innerHTML);
+                // }, false);
 
                 rws = table.getElementsByTagName('TR');
                 if (rws.length > 51) {
