@@ -39,7 +39,7 @@ func MngrCreateHandler(w http.ResponseWriter, r *http.Request) {
 	ccredis.Client.Set("mngrs/"+UUID, string(js), 0)
 	ccredis.Client.SAdd("user/mngrs/"+userUUID, UUID)
 
-	log.Println("Zond created", UUID)
+	log.Println("Manager created", UUID)
 
 	// if r.Header.Get("X-Requested-With") == "xmlhttprequest" {
 	// w.Header().Set("X-CSRF-Token", csrf.Token(r))
