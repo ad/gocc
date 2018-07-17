@@ -124,7 +124,11 @@ func ResendRepeatable(fromPast bool) {
 
 					ccredis.Client.SAdd("tasks-repeatable-"+strconv.FormatInt(t300new, 10), string(js))
 
-					go utils.Post("http://127.0.0.1:80/pub/"+action.Target, string(js))
+					if action.Type != "task" {
+						go utils.Post("http://127.0.0.1:80/pub/mngrtasks", string(js))
+					} else {
+						go utils.Post("http://127.0.0.1:80/pub/"+action.Target, string(js))
+					}
 
 					ccredis.Client.SRem("tasks-repeatable-"+t300, task)
 				}
