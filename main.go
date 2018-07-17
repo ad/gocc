@@ -15,6 +15,8 @@ import (
 	"github.com/ad/gocc/selfupdate"
 	"github.com/ad/gocc/utils"
 
+	uuid "github.com/nu7hatch/gouuid"
+
 	"github.com/gorilla/csrf"
 	"github.com/gorilla/mux"
 )
