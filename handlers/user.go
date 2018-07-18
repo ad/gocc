@@ -118,13 +118,20 @@ func UserLoginHandler(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-
-	varmap := map[string]interface{}{
-		"ErrorMessage":   errorMessage,
-		csrf.TemplateTag: csrf.TemplateField(r),
+	if r.Header.Get("X-Requested-With") == "xmlhttprequest" {
+		status := "ok"
+		if errorMessage != "" {
+			status = "error"
+		}
+		fmt.Fprintf(w, `{"status": %s, "error": "%s"}`, status, errorMessage)
+	} else {
+		varmap := map[string]interface{}{
+			"ErrorMessage":   errorMessage,
+			csrf.TemplateTag: csrf.TemplateField(r),
+		}
+		tmpl, _ := templ.New("login", bindata.Asset).Parse("login.html")
+		tmpl.Execute(w, varmap)
 	}
-	tmpl, _ := templ.New("login", bindata.Asset).Parse("login.html")
-	tmpl.Execute(w, varmap)
 }
 
 func UserRegisterHandler(w http.ResponseWriter, r *http.Request) {
@@ -246,16 +253,25 @@ func UserRecoverHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	varmap := map[string]interface{}{
-		"ErrorMessage":   errorMessage,
-		csrf.TemplateTag: csrf.TemplateField(r),
+	if r.Header.Get("X-Requested-With") == "xmlhttprequest" {
+		status := "ok"
+		if errorMessage != "" {
+			status = "error"
+		}
+		fmt.Fprintf(w, `{"status": %s, "error": "%s"}`, status, errorMessage)
+	} else {
+		varmap := map[string]interface{}{
+			"ErrorMessage":   errorMessage,
+			csrf.TemplateTag: csrf.TemplateField(r),
+		}
+		tmpl, _ := templ.New("password_recovery", bindata.Asset).Parse("password_recovery.html")
+		tmpl.Execute(w, varmap)
 	}
-	tmpl, _ := templ.New("password_recovery", bindata.Asset).Parse("password_recovery.html")
-	tmpl.Execute(w, varmap)
 }
 
 func UserResetHandler(w http.ResponseWriter, r *http.Request) {
 	var redirectURL = r.URL.Host + "/user"
+	var errorMessage = ""
 
 	password := r.FormValue("hash")
 	password = strings.Replace(password, " ", "+", -1)
@@ -307,9 +323,23 @@ func UserResetHandler(w http.ResponseWriter, r *http.Request) {
 					Expires: time.Now().Add(time.Hour * -24),
 					Path:    "/",
 				})
+			} else {
+				errorMessage = "reset link not found"
 			}
+		} else {
+			errorMessage = "user not found"
 		}
+	} else {
+		errorMessage = "wrong login"
 	}
 
-	http.Redirect(w, r, redirectURL, http.StatusFound)
+	if r.Header.Get("X-Requested-With") == "xmlhttprequest" {
+		status := "ok"
+		if errorMessage != "" {
+			status = "error"
+		}
+		fmt.Fprintf(w, `{"status": %s, "error": "%s"}`, status, errorMessage)
+	} else {
+		http.Redirect(w, r, redirectURL, http.StatusFound)
+	}
 }

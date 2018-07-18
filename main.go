@@ -21,7 +21,7 @@ import (
 	"github.com/gorilla/mux"
 )
 
-const version = "0.4.15"
+const version = "0.4.16"
 
 var port = flag.String("port", "9000", "Port to listen on")
 var gogeoaddr = flag.String("gogeoaddr", "http://127.0.0.1:9001", "Address:port of gogeo instance")
