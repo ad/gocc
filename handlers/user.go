@@ -198,12 +198,20 @@ func UserRegisterHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	varmap := map[string]interface{}{
-		"ErrorMessage":   errorMessage,
-		csrf.TemplateTag: csrf.TemplateField(r),
+	if r.Header.Get("X-Requested-With") == "xmlhttprequest" {
+		status := "ok"
+		if errorMessage != "" {
+			status = "error"
+		}
+		fmt.Fprintf(w, `{"status": %s, "error": "%s"}`, status, errorMessage)
+	} else {
+		varmap := map[string]interface{}{
+			"ErrorMessage":   errorMessage,
+			csrf.TemplateTag: csrf.TemplateField(r),
+		}
+		tmpl, _ := templ.New("register", bindata.Asset).Parse("register.html")
+		tmpl.Execute(w, varmap)
 	}
-	tmpl, _ := templ.New("register", bindata.Asset).Parse("register.html")
-	tmpl.Execute(w, varmap)
 }
 
 func UserRecoverHandler(w http.ResponseWriter, r *http.Request) {
