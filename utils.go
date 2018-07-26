@@ -1,4 +1,4 @@
-package utils
+package main
 
 import (
 	"bytes"
@@ -12,13 +12,19 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"regexp"
 	"strings"
 	"time"
 
-	"github.com/ad/gocc/ccredis"
-	"github.com/ad/gocc/structs"
-
 	"golang.org/x/crypto/bcrypt"
+)
+
+var (
+	// Regular expression used to validate RFC1035 hostnames*/
+	hostnameRegex = regexp.MustCompile(`^(([a-zA-Z]|[a-zA-Z][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z]|[A-Za-z][A-Za-z0-9\-]*[A-Za-z0-9])$`)
+
+	// Simple regular expression for IPv4 values, more rigorous checking is done via net.ParseIP
+	ipv4Regex = regexp.MustCompile(`^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$`)
 )
 
 func IPToWSChannels(ip string, gogeoaddr *string) string {
@@ -47,7 +53,7 @@ func IPToWSChannels(ip string, gogeoaddr *string) string {
 				log.Println(readErr)
 			} else {
 
-				geodata := structs.Geodata{}
+				geodata := Geodata{}
 				// log.Println(geodata)
 				jsonErr := json.Unmarshal(body, &geodata)
 				if jsonErr != nil {
@@ -117,29 +123,29 @@ func FQDN() string {
 }
 
 func GetActiveDestinations() {
-	zonds, _ := ccredis.Client.SMembers("Zond-online").Result()
+	zonds, _ := Client.SMembers("Zond-online").Result()
 	// if len(zonds) > 0 {
 	// 	// for _, zond := range zonds {
 	// }
 
-	cities, _ := ccredis.Client.HVals("zond:city").Result()
+	cities, _ := Client.HVals("zond:city").Result()
 	if len(cities) > 0 {
 		cities = SliceUniqMap(cities)
 	}
 
-	countries, _ := ccredis.Client.HVals("zond:country").Result()
+	countries, _ := Client.HVals("zond:country").Result()
 	if len(countries) > 0 {
 		countries = SliceUniqMap(countries)
 	}
 
-	asns, _ := ccredis.Client.HVals("zond:asn").Result()
+	asns, _ := Client.HVals("zond:asn").Result()
 	if len(asns) > 0 {
 		asns = SliceUniqMap(asns)
 	}
 
 	// log.Println(zonds, cities, countries, asns)
 
-	channels := structs.Channels{Action: "destinations", Zonds: zonds, Countries: countries, Cities: cities, ASNs: asns}
+	channels := Channels{Action: "destinations", Zonds: zonds, Countries: countries, Cities: cities, ASNs: asns}
 	js, _ := json.Marshal(channels)
 	// log.Println(string(js))
 

@@ -1,4 +1,4 @@
-package background
+package main
 
 import (
 	"encoding/json"
@@ -8,37 +8,33 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ad/gocc/ccredis"
-	"github.com/ad/gocc/structs"
-	"github.com/ad/gocc/utils"
-
 	uuid "github.com/nu7hatch/gouuid"
 )
 
 var HistoryHours = flag.Int64("historyHours", 6, "How many hours check from history of repeatable tasks in case of downtime")
 
 func ResetProcessing() {
-	tasks, _ := ccredis.Client.SMembers("tasks-process").Result()
+	tasks, _ := Client.SMembers("tasks-process").Result()
 	if len(tasks) > 0 {
 		for _, task := range tasks {
 			s := strings.Split(task, "/")
 			ZondUuid, taskUuid := s[0], s[1]
 
-			tp, _ := ccredis.Client.Get(task + "/processing").Result()
+			tp, _ := Client.Get(task + "/processing").Result()
 			if tp != "1" {
 				log.Println("Removed outdated task", tp, ZondUuid, taskUuid)
-				ccredis.Client.SRem("zond-busy", ZondUuid)
-				ccredis.Client.SRem("tasks-process", task)
+				Client.SRem("zond-busy", ZondUuid)
+				Client.SRem("tasks-process", task)
 
-				ccredis.Client.SAdd("tasks-new", taskUuid)
+				Client.SAdd("tasks-new", taskUuid)
 
-				js, _ := ccredis.Client.Get("task/" + taskUuid).Result()
-				var action structs.Action
+				js, _ := Client.Get("task/" + taskUuid).Result()
+				var action Action
 				err := json.Unmarshal([]byte(js), &action)
 				if err != nil {
 					log.Println(err.Error())
 				} else {
-					go utils.Post("http://127.0.0.1:80/pub/"+action.Target, string(js))
+					go Post("http://127.0.0.1:80/pub/"+action.Target, string(js))
 					log.Println("Task resend to queue", action)
 				}
 			}
@@ -47,22 +43,22 @@ func ResetProcessing() {
 }
 
 func ResendOffline() {
-	tasks, _ := ccredis.Client.SMembers("tasks-new").Result()
+	tasks, _ := Client.SMembers("tasks-new").Result()
 
 	if len(tasks) > 0 {
 		log.Println("active tasks", tasks)
 		for _, task := range tasks {
-			js, _ := ccredis.Client.Get("task/" + task).Result()
+			js, _ := Client.Get("task/" + task).Result()
 
-			var action structs.Action
+			var action Action
 			err := json.Unmarshal([]byte(js), &action)
 			if err != nil {
 				log.Println(err.Error())
 			} else {
 				if action.Result != "" {
-					ccredis.Client.SRem("tasks-new", action.UUID)
+					Client.SRem("tasks-new", action.UUID)
 				} else {
-					go utils.Post("http://127.0.0.1:80/pub/"+action.Target, string(js))
+					go Post("http://127.0.0.1:80/pub/"+action.Target, string(js))
 					log.Println(action)
 				}
 			}
@@ -85,12 +81,12 @@ func ResendRepeatable(fromPast bool) {
 	for i := start; start <= end; start += 300 {
 		// log.Println(i, start, end)
 		t300 := strconv.FormatInt(i, 10)
-		tasks, _ := ccredis.Client.SMembers("tasks-repeatable-" + t300).Result()
+		tasks, _ := Client.SMembers("tasks-repeatable-" + t300).Result()
 
 		if len(tasks) > 0 {
 			log.Println("repeatable tasks", tasks)
 			for _, task := range tasks {
-				var action structs.Action
+				var action Action
 				err := json.Unmarshal([]byte(task), &action)
 				if err != nil {
 					log.Println(err.Error())
@@ -102,12 +98,12 @@ func ResendRepeatable(fromPast bool) {
 					var UUID = u.String()
 					action.UUID = UUID
 					action.Created = t - (t % 300)
-					ccredis.Client.SAdd("tasks-new", UUID)
+					Client.SAdd("tasks-new", UUID)
 
 					js, _ := json.Marshal(action)
 
-					ccredis.Client.Set("task/"+UUID, string(js), 0)
-					ccredis.Client.SAdd("user/tasks/"+action.Creator, UUID)
+					Client.Set("task/"+UUID, string(js), 0)
+					Client.SAdd("user/tasks/"+action.Creator, UUID)
 
 					t := time.Now()
 
@@ -126,15 +122,15 @@ func ResendRepeatable(fromPast bool) {
 					t300new := (tnew - (tnew % 300))
 					log.Println("next start will be at ", strconv.FormatInt(t300new, 10))
 
-					ccredis.Client.SAdd("tasks-repeatable-"+strconv.FormatInt(t300new, 10), string(js))
+					Client.SAdd("tasks-repeatable-"+strconv.FormatInt(t300new, 10), string(js))
 
 					if action.Type != "task" {
-						go utils.Post("http://127.0.0.1:80/pub/mngrtasks", string(js))
+						go Post("http://127.0.0.1:80/pub/mngrtasks", string(js))
 					} else {
-						go utils.Post("http://127.0.0.1:80/pub/"+action.Target, string(js))
+						go Post("http://127.0.0.1:80/pub/"+action.Target, string(js))
 					}
 
-					ccredis.Client.SRem("tasks-repeatable-"+t300, task)
+					Client.SRem("tasks-repeatable-"+t300, task)
 				}
 			}
 		}
@@ -142,29 +138,29 @@ func ResendRepeatable(fromPast bool) {
 }
 
 func CheckAlive() {
-	zonds, _ := ccredis.Client.SMembers("Zond-online").Result()
+	zonds, _ := Client.SMembers("Zond-online").Result()
 	if len(zonds) > 0 {
 		// log.Println("active", zonds)
 		for _, zond := range zonds {
-			tp, _ := ccredis.Client.Get(zond + "/alive").Result()
+			tp, _ := Client.Get(zond + "/alive").Result()
 			// log.Println(zond, tp)
 			if tp == "" {
 				u, _ := uuid.NewV4()
 				var UUID = u.String()
 				var msec = time.Now().Unix()
-				action := structs.Action{Action: "alive", UUID: UUID, Created: msec}
+				action := Action{Action: "alive", UUID: UUID, Created: msec}
 				js, _ := json.Marshal(action)
-				ccredis.Client.Set(zond+"/alive", UUID, 90*time.Second)
-				go utils.Post("http://127.0.0.1:80/pub/zond:"+zond, string(js))
+				Client.Set(zond+"/alive", UUID, 90*time.Second)
+				go Post("http://127.0.0.1:80/pub/zond:"+zond, string(js))
 			} else {
 				log.Println(zond, "— removed")
-				ccredis.Client.SRem("Zond-online", zond)
+				Client.SRem("Zond-online", zond)
 
-				ccredis.Client.HDel("zond:city", zond)
-				ccredis.Client.HDel("zond:country", zond)
-				ccredis.Client.HDel("zond:asn", zond)
-				go utils.Delete("http://127.0.0.1:80/pub/zond:" + zond)
-				utils.GetActiveDestinations()
+				Client.HDel("zond:city", zond)
+				Client.HDel("zond:country", zond)
+				Client.HDel("zond:asn", zond)
+				go Delete("http://127.0.0.1:80/pub/zond:" + zond)
+				GetActiveDestinations()
 			}
 		}
 	}

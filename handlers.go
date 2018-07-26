@@ -1,4 +1,4 @@
-package handlers
+package main
 
 import (
 	"encoding/json"
@@ -7,9 +7,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/ad/gocc/ccredis"
-	"github.com/ad/gocc/utils"
-
 	"github.com/gorilla/csrf"
 
 	"github.com/ulule/limiter"
@@ -17,7 +14,7 @@ import (
 	"github.com/ulule/limiter/drivers/store/memory"
 )
 
-var Fqdn = utils.FQDN()
+var Fqdn = FQDN()
 var Version = ""
 
 func Throttle(period time.Duration, limit int64, f http.Handler) http.Handler {
@@ -40,7 +37,7 @@ func ZondAuth(f http.Handler) http.HandlerFunc {
 			return
 		}
 
-		isMember, _ := ccredis.Client.SIsMember("zonds", uuid).Result()
+		isMember, _ := Client.SIsMember("zonds", uuid).Result()
 		if !isMember {
 			http.Error(w, "Not authorized", 401)
 			return
@@ -61,7 +58,7 @@ func MngrAuth(f http.Handler) http.HandlerFunc {
 			return
 		}
 
-		isMember, _ := ccredis.Client.SIsMember("mngrs", uuid).Result()
+		isMember, _ := Client.SIsMember("mngrs", uuid).Result()
 		if !isMember {
 			http.Error(w, "Not authorized", 401)
 			return
@@ -87,8 +84,8 @@ func TokenHandler(w http.ResponseWriter, r *http.Request) {
 func GetHandler(w http.ResponseWriter, r *http.Request) {
 	log.Println("GET done", r)
 
-	users, _ := ccredis.Client.SMembers("Zond-online").Result()
-	usersCount, _ := ccredis.Client.SCard("Zond-online").Result()
+	users, _ := Client.SMembers("Zond-online").Result()
+	usersCount, _ := Client.SCard("Zond-online").Result()
 	log.Println("active users", users, usersCount)
 
 	jsonBody, err := json.Marshal(users)
@@ -104,9 +101,9 @@ func DispatchHandler(w http.ResponseWriter, r *http.Request, gogeoaddr *string) 
 	var mngruuid = r.Header.Get("X-MngrUuid")
 	var ip = r.Header.Get("X-Forwarded-For")
 	if len(uuid) == 36 {
-		isMember, _ := ccredis.Client.SIsMember("zonds", uuid).Result()
+		isMember, _ := Client.SIsMember("zonds", uuid).Result()
 		if isMember {
-			var add = utils.IPToWSChannels(ip, gogeoaddr)
+			var add = IPToWSChannels(ip, gogeoaddr)
 			log.Println("/internal/sub/zond:" + uuid + "," + add + "," + ip)
 			w.Header().Add("X-Accel-Redirect", "/internal/sub/zond:"+uuid+","+add+","+ip)
 		} else {
@@ -118,7 +115,7 @@ func DispatchHandler(w http.ResponseWriter, r *http.Request, gogeoaddr *string) 
 			return
 		}
 	} else if len(mngruuid) == 36 {
-		isMember, _ := ccredis.Client.SIsMember("mngrs", mngruuid).Result()
+		isMember, _ := Client.SIsMember("mngrs", mngruuid).Result()
 		if isMember {
 			log.Println("/internal/sub/mngrtasks,mngr" + mngruuid + "," + ip)
 			w.Header().Add("X-Accel-Redirect", "/internal/sub/mngrtasks,mngr"+mngruuid+","+ip)

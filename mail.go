@@ -1,4 +1,4 @@
-package mail
+package main
 
 import (
 	"fmt"
@@ -11,12 +11,12 @@ import (
 	"strings"
 )
 
-var host = "127.0.0.1"
-var port = "25"
-var username = ""
-var password = ""
-var auth = smtp.PlainAuth("", username, password, host)
-var addr = host + ":" + port
+var smtphost = "127.0.0.1"
+var smtpport = "25"
+var smtpusername = ""
+var smtppassword = ""
+var smtpauth = smtp.PlainAuth("", smtpusername, smtppassword, smtphost)
+var smtpaddr = smtphost + ":" + smtpport
 
 func SendMail(to string, subject string, body string, hostname string) {
 	if hostname == "" {
@@ -49,7 +49,7 @@ func SendMail(to string, subject string, body string, hostname string) {
 	msg += "\r\n" + body
 	bMsg := []byte(msg)
 	// Send using local postfix service
-	c, err := smtp.Dial(addr)
+	c, err := smtp.Dial(smtpaddr)
 	if err != nil {
 		log.Println(err)
 		return

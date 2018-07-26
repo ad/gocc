@@ -1,4 +1,4 @@
-package handlers
+package main
 
 import (
 	"encoding/json"
@@ -8,11 +8,6 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-
-	"github.com/ad/gocc/bindata"
-	"github.com/ad/gocc/ccredis"
-	"github.com/ad/gocc/structs"
-	"github.com/ad/gocc/utils"
 
 	pagination "github.com/AndyEverLie/go-pagination-bootstrap"
 	templ "github.com/arschles/go-bindata-html-template"
@@ -27,15 +22,15 @@ func ZondPong(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			http.Error(w, "Error reading request body", http.StatusInternalServerError)
 		} else {
-			var t structs.Action
+			var t Action
 			err := json.Unmarshal(body, &t)
 			if err != nil {
 				log.Println(err.Error())
 			}
 			// log.Println("pong from", t.ZondUuid, r.Header.Get("X-Forwarded-For"))
-			tp, _ := ccredis.Client.Get(t.ZondUUID + "/alive").Result()
+			tp, _ := Client.Get(t.ZondUUID + "/alive").Result()
 			if t.UUID == tp {
-				ccredis.Client.Del(t.ZondUUID + "/alive")
+				Client.Del(t.ZondUUID + "/alive")
 				// log.Print(t.ZondUuid, "Zond pong")
 				// w.Header().Set("X-CSRF-Token", csrf.Token(r))
 				fmt.Fprintf(w, `{"status": "ok"}`)
@@ -47,27 +42,27 @@ func ZondPong(w http.ResponseWriter, r *http.Request) {
 func ZondSub(w http.ResponseWriter, r *http.Request) {
 	var uuid = r.Header.Get("X-ZondUuid")
 	if len(uuid) == 36 {
-		isMember, _ := ccredis.Client.SIsMember("zonds", uuid).Result()
+		isMember, _ := Client.SIsMember("zonds", uuid).Result()
 		if isMember {
 			log.Println(uuid, "— connected")
-			ccredis.Client.SAdd("Zond-online", uuid)
-			usersCount, _ := ccredis.Client.SCard("Zond-online").Result()
+			Client.SAdd("Zond-online", uuid)
+			usersCount, _ := Client.SCard("Zond-online").Result()
 			fmt.Printf("Active zonds: %d\n", usersCount)
 
 			for i := 0; i < 5; i++ {
 				var data = r.Header.Get("X-Channel-Id" + fmt.Sprint(i))
 				if strings.HasPrefix(data, "City") {
 					var city = strings.Join(strings.Split(r.Header.Get("X-Channel-Id"+fmt.Sprint(i)), ":")[1:], ":")
-					ccredis.Client.HSet("zond:city", uuid, city)
+					Client.HSet("zond:city", uuid, city)
 				} else if strings.HasPrefix(data, "Country") {
 					var country = strings.Join(strings.Split(r.Header.Get("X-Channel-Id"+fmt.Sprint(i)), ":")[1:], ":")
-					ccredis.Client.HSet("zond:country", uuid, country)
+					Client.HSet("zond:country", uuid, country)
 				} else if strings.HasPrefix(data, "ASN") {
 					var asn = strings.Join(strings.Split(r.Header.Get("X-Channel-Id"+fmt.Sprint(i)), ":")[1:], ":")
-					ccredis.Client.HSet("zond:asn", uuid, asn)
+					Client.HSet("zond:asn", uuid, asn)
 				}
 			}
-			utils.GetActiveDestinations()
+			GetActiveDestinations()
 		}
 	}
 }
@@ -76,48 +71,48 @@ func ZondUnsub(w http.ResponseWriter, r *http.Request) {
 	var uuid = r.Header.Get("X-ZondUuid")
 	if len(uuid) > 0 {
 		log.Println(r.Header.Get("X-ZondUuid"), "— disconnected")
-		ccredis.Client.SRem("Zond-online", r.Header.Get("X-ZondUuid"))
-		usersCount, _ := ccredis.Client.SCard("Zond-online").Result()
+		Client.SRem("Zond-online", r.Header.Get("X-ZondUuid"))
+		usersCount, _ := Client.SCard("Zond-online").Result()
 		fmt.Printf("Active zonds: %d\n", usersCount)
 
 		for i := 0; i < 5; i++ {
 			var data = r.Header.Get("X-Channel-Id" + fmt.Sprint(i))
 			if strings.HasPrefix(data, "City") {
 				// var city = strings.Join(strings.Split(r.Header.Get("X-Channel-Id"+fmt.Sprint(i)), ":")[1:], ":")
-				ccredis.Client.HDel("zond:city", uuid)
+				Client.HDel("zond:city", uuid)
 			} else if strings.HasPrefix(data, "Country") {
 				// var country = strings.Join(strings.Split(r.Header.Get("X-Channel-Id"+fmt.Sprint(i)), ":")[1:], ":")
-				ccredis.Client.HDel("zond:country", uuid)
+				Client.HDel("zond:country", uuid)
 			} else if strings.HasPrefix(data, "ASN") {
 				// var asn = strings.Join(strings.Split(r.Header.Get("X-Channel-Id"+fmt.Sprint(i)), ":")[1:], ":")
-				ccredis.Client.HDel("zond:asn", uuid)
+				Client.HDel("zond:asn", uuid)
 			}
 		}
-		utils.GetActiveDestinations()
+		GetActiveDestinations()
 	}
 }
 
 func ShowMyZonds(w http.ResponseWriter, r *http.Request) {
 	var perPage int = 20
 	page, _ := strconv.ParseInt(r.FormValue("page"), 10, 0)
-	userUuid, _ := ccredis.Client.Get("user/uuid/" + r.Header.Get("X-Forwarded-User")).Result()
+	userUuid, _ := Client.Get("user/uuid/" + r.Header.Get("X-Forwarded-User")).Result()
 	if userUuid == "" {
 		u, _ := uuid.NewV4()
 		userUuid = u.String()
-		ccredis.Client.Set(fmt.Sprintf("user/uuid/%s", r.Header.Get("X-Forwarded-User")), userUuid, 0)
+		Client.Set(fmt.Sprintf("user/uuid/%s", r.Header.Get("X-Forwarded-User")), userUuid, 0)
 	}
 
-	count, _ := ccredis.Client.SCard("user/zonds/" + userUuid).Result()
-	currentPage, pages, hasPrev, hasNext := utils.GetPaginator(int(page), int(count), perPage)
+	count, _ := Client.SCard("user/zonds/" + userUuid).Result()
+	currentPage, pages, hasPrev, hasNext := GetPaginator(int(page), int(count), perPage)
 
-	var results []structs.Zond
+	var results []Zond
 	if count > 0 {
 		// log.Println(count)
 		var cursor = uint64(int64(perPage) * int64(currentPage-1))
 		// var cursorNew uint64
 		var keys []string
 		var err error
-		keys, _, err = ccredis.Client.SScan("user/zonds/"+userUuid, cursor, "", int64(perPage)).Result()
+		keys, _, err = Client.SScan("user/zonds/"+userUuid, cursor, "", int64(perPage)).Result()
 
 		if err != nil {
 			log.Println(err)
@@ -127,10 +122,10 @@ func ShowMyZonds(w http.ResponseWriter, r *http.Request) {
 				keys[i] = "zonds/" + val
 			}
 
-			items, _ := ccredis.Client.MGet(keys...).Result()
+			items, _ := Client.MGet(keys...).Result()
 			for _, val := range items {
 				if val != nil {
-					var t structs.Zond
+					var t Zond
 					err := json.Unmarshal([]byte(val.(string)), &t)
 					if err != nil {
 						log.Println(err.Error())
@@ -160,6 +155,6 @@ func ShowMyZonds(w http.ResponseWriter, r *http.Request) {
 	}
 	// log.Println(varmap)
 
-	tmpl, _ := templ.New("zonds", bindata.Asset).Parse("zonds.html")
+	tmpl, _ := templ.New("zonds", Asset).Parse("zonds.html")
 	tmpl.Execute(w, varmap)
 }

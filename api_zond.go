@@ -1,4 +1,4 @@
-package api
+package main
 
 import (
 	"encoding/json"
@@ -7,8 +7,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/ad/gocc/ccredis"
-	"github.com/ad/gocc/structs"
 	uuid "github.com/nu7hatch/gouuid"
 )
 
@@ -24,20 +22,20 @@ func ZondCreateHandler(w http.ResponseWriter, r *http.Request) {
 		name = UUID
 	}
 
-	ccredis.Client.SAdd("zonds", UUID)
+	Client.SAdd("zonds", UUID)
 
-	userUUID, _ := ccredis.Client.Get("user/UUID/" + r.Header.Get("X-Forwarded-User")).Result()
+	userUUID, _ := Client.Get("user/UUID/" + r.Header.Get("X-Forwarded-User")).Result()
 	if userUUID == "" {
 		u, _ := uuid.NewV4()
 		userUUID = u.String()
-		ccredis.Client.Set(fmt.Sprintf("user/UUID/%s", r.Header.Get("X-Forwarded-User")), userUUID, 0)
+		Client.Set(fmt.Sprintf("user/UUID/%s", r.Header.Get("X-Forwarded-User")), userUUID, 0)
 	}
 
-	zond := structs.Zond{UUID: UUID, Name: name, Created: msec, Creator: userUUID}
+	zond := Zond{UUID: UUID, Name: name, Created: msec, Creator: userUUID}
 	js, _ := json.Marshal(zond)
 
-	ccredis.Client.Set("zonds/"+UUID, string(js), 0)
-	ccredis.Client.SAdd("user/zonds/"+userUUID, UUID)
+	Client.Set("zonds/"+UUID, string(js), 0)
+	Client.SAdd("user/zonds/"+userUUID, UUID)
 
 	log.Println("Zond created", UUID)
 

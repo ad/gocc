@@ -1,4 +1,4 @@
-package structs
+package main
 
 type Action struct {
 	ZondUUID   string `json:"zond"`

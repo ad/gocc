@@ -1,4 +1,4 @@
-package api
+package main
 
 import (
 	"encoding/json"
@@ -7,8 +7,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/ad/gocc/ccredis"
-	"github.com/ad/gocc/structs"
 	uuid "github.com/nu7hatch/gouuid"
 )
 
@@ -24,20 +22,20 @@ func MngrCreateHandler(w http.ResponseWriter, r *http.Request) {
 		name = UUID
 	}
 
-	ccredis.Client.SAdd("mngrs", UUID)
+	Client.SAdd("mngrs", UUID)
 
-	userUUID, _ := ccredis.Client.Get("user/uuid/" + r.Header.Get("X-Forwarded-User")).Result()
+	userUUID, _ := Client.Get("user/uuid/" + r.Header.Get("X-Forwarded-User")).Result()
 	if userUUID == "" {
 		u, _ := uuid.NewV4()
 		userUUID = u.String()
-		ccredis.Client.Set(fmt.Sprintf("user/uuid/%s", r.Header.Get("X-Forwarded-User")), userUUID, 0)
+		Client.Set(fmt.Sprintf("user/uuid/%s", r.Header.Get("X-Forwarded-User")), userUUID, 0)
 	}
 
-	zond := structs.Mngr{UUID: UUID, Name: name, Created: msec, Creator: userUUID}
+	zond := Mngr{UUID: UUID, Name: name, Created: msec, Creator: userUUID}
 	js, _ := json.Marshal(zond)
 
-	ccredis.Client.Set("mngrs/"+UUID, string(js), 0)
-	ccredis.Client.SAdd("user/mngrs/"+userUUID, UUID)
+	Client.Set("mngrs/"+UUID, string(js), 0)
+	Client.SAdd("user/mngrs/"+userUUID, UUID)
 
 	log.Println("Manager created", UUID)
 

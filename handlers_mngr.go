@@ -1,4 +1,4 @@
-package handlers
+package main
 
 import (
 	"encoding/json"
@@ -7,11 +7,6 @@ import (
 	"log"
 	"net/http"
 	"strconv"
-
-	"github.com/ad/gocc/bindata"
-	"github.com/ad/gocc/ccredis"
-	"github.com/ad/gocc/structs"
-	"github.com/ad/gocc/utils"
 
 	pagination "github.com/AndyEverLie/go-pagination-bootstrap"
 	templ "github.com/arschles/go-bindata-html-template"
@@ -26,14 +21,14 @@ func MngrPong(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			http.Error(w, "Error reading request body", http.StatusInternalServerError)
 		} else {
-			var t structs.Action
+			var t Action
 			err := json.Unmarshal(body, &t)
 			if err != nil {
 				log.Println(err.Error())
 			}
-			tp, _ := ccredis.Client.Get(t.MngrUUID + "/alive").Result()
+			tp, _ := Client.Get(t.MngrUUID + "/alive").Result()
 			if t.UUID == tp {
-				ccredis.Client.Del(t.MngrUUID + "/alive")
+				Client.Del(t.MngrUUID + "/alive")
 				// w.Header().Set("X-CSRF-Token", csrf.Token(r))
 				fmt.Fprintf(w, `{"status": "ok"}`)
 			}
@@ -44,11 +39,11 @@ func MngrPong(w http.ResponseWriter, r *http.Request) {
 func MngrSub(w http.ResponseWriter, r *http.Request) {
 	var uuid = r.Header.Get("X-MngrUuid")
 	if len(uuid) == 36 {
-		isMember, _ := ccredis.Client.SIsMember("mngrs", uuid).Result()
+		isMember, _ := Client.SIsMember("mngrs", uuid).Result()
 		if isMember {
 			log.Println(uuid, "— connected")
-			ccredis.Client.SAdd("mngr-online", uuid)
-			usersCount, _ := ccredis.Client.SCard("mngr-online").Result()
+			Client.SAdd("mngr-online", uuid)
+			usersCount, _ := Client.SCard("mngr-online").Result()
 			fmt.Printf("Active Mngrs: %d\n", usersCount)
 		}
 	}
@@ -58,8 +53,8 @@ func MngrUnsub(w http.ResponseWriter, r *http.Request) {
 	var uuid = r.Header.Get("X-MngrUuid")
 	if len(uuid) > 0 {
 		log.Println(r.Header.Get("X-MngrUuid"), "— disconnected")
-		ccredis.Client.SRem("Mngr-online", r.Header.Get("X-MngrUuid"))
-		usersCount, _ := ccredis.Client.SCard("mngr-online").Result()
+		Client.SRem("Mngr-online", r.Header.Get("X-MngrUuid"))
+		usersCount, _ := Client.SCard("mngr-online").Result()
 		fmt.Printf("Active Mngrs: %d\n", usersCount)
 	}
 }
@@ -67,24 +62,24 @@ func MngrUnsub(w http.ResponseWriter, r *http.Request) {
 func ShowMyMngrs(w http.ResponseWriter, r *http.Request) {
 	var perPage int = 20
 	page, _ := strconv.ParseInt(r.FormValue("page"), 10, 0)
-	userUuid, _ := ccredis.Client.Get("user/uuid/" + r.Header.Get("X-Forwarded-User")).Result()
+	userUuid, _ := Client.Get("user/uuid/" + r.Header.Get("X-Forwarded-User")).Result()
 	if userUuid == "" {
 		u, _ := uuid.NewV4()
 		userUuid = u.String()
-		ccredis.Client.Set(fmt.Sprintf("user/uuid/%s", r.Header.Get("X-Forwarded-User")), userUuid, 0)
+		Client.Set(fmt.Sprintf("user/uuid/%s", r.Header.Get("X-Forwarded-User")), userUuid, 0)
 	}
 
-	count, _ := ccredis.Client.SCard("user/mngrs/" + userUuid).Result()
-	currentPage, pages, hasPrev, hasNext := utils.GetPaginator(int(page), int(count), perPage)
+	count, _ := Client.SCard("user/mngrs/" + userUuid).Result()
+	currentPage, pages, hasPrev, hasNext := GetPaginator(int(page), int(count), perPage)
 
-	var results []structs.Mngr
+	var results []Mngr
 	if count > 0 {
 		// log.Println(count)
 		var cursor = uint64(int64(perPage) * int64(currentPage-1))
 		// var cursorNew uint64
 		var keys []string
 		var err error
-		keys, _, err = ccredis.Client.SScan("user/mngrs/"+userUuid, cursor, "", int64(perPage)).Result()
+		keys, _, err = Client.SScan("user/mngrs/"+userUuid, cursor, "", int64(perPage)).Result()
 
 		if err != nil {
 			log.Println(err)
@@ -94,10 +89,10 @@ func ShowMyMngrs(w http.ResponseWriter, r *http.Request) {
 				keys[i] = "mngrs/" + val
 			}
 
-			items, _ := ccredis.Client.MGet(keys...).Result()
+			items, _ := Client.MGet(keys...).Result()
 			for _, val := range items {
 				if val != nil {
-					var t structs.Mngr
+					var t Mngr
 					err := json.Unmarshal([]byte(val.(string)), &t)
 					if err != nil {
 						log.Println(err.Error())
@@ -127,6 +122,6 @@ func ShowMyMngrs(w http.ResponseWriter, r *http.Request) {
 	}
 	// log.Println(varmap)
 
-	tmpl, _ := templ.New("mngrs", bindata.Asset).Parse("mngrs.html")
+	tmpl, _ := templ.New("mngrs", Asset).Parse("mngrs.html")
 	tmpl.Execute(w, varmap)
 }

@@ -1,4 +1,4 @@
-package selfupdate
+package main
 
 import (
 	"fmt"
@@ -10,8 +10,6 @@ import (
 	"github.com/blang/semver"
 	"github.com/kardianos/osext"
 	"github.com/rhysd/go-github-selfupdate/selfupdate"
-
-	"github.com/ad/gocc/utils"
 )
 
 func StartSelfupdate(slug string, version string, fqdn string) {
@@ -43,7 +41,7 @@ func selfUpdate(slug string, version string, fqdn string) error {
 		fmt.Println("Release note:\n", latest.ReleaseNotes)
 
 		// we really need to receive this signal until function die
-		defer utils.Post("http://127.0.0.1:80/pub/"+fqdn, `{"action": "updated", "version": "`+fmt.Sprint(latest.Version)+`"}`)
+		defer Post("http://127.0.0.1:80/pub/"+fqdn, `{"action": "updated", "version": "`+fmt.Sprint(latest.Version)+`"}`)
 
 		file, err := osext.Executable()
 		if err != nil {

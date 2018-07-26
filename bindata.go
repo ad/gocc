@@ -11,7 +11,7 @@
 // templates/zonds.html
 // DO NOT EDIT!
 
-package bindata
+package main
 
 import (
 	"bytes"
@@ -308,15 +308,15 @@ func AssetNames() []string {
 
 // _bindata is a table, holding each asset generator, mapped to its name.
 var _bindata = map[string]func() (*asset, error){
-	"dashboard.html": dashboardHtml,
-	"error404.html": error404Html,
-	"login.html": loginHtml,
-	"mngrs.html": mngrsHtml,
+	"dashboard.html":         dashboardHtml,
+	"error404.html":          error404Html,
+	"login.html":             loginHtml,
+	"mngrs.html":             mngrsHtml,
 	"password_recovery.html": password_recoveryHtml,
-	"register.html": registerHtml,
-	"repeatable.html": repeatableHtml,
-	"tasks.html": tasksHtml,
-	"zonds.html": zondsHtml,
+	"register.html":          registerHtml,
+	"repeatable.html":        repeatableHtml,
+	"tasks.html":             tasksHtml,
+	"zonds.html":             zondsHtml,
 }
 
 // AssetDir returns the file names below a certain
@@ -358,16 +358,17 @@ type bintree struct {
 	Func     func() (*asset, error)
 	Children map[string]*bintree
 }
+
 var _bintree = &bintree{nil, map[string]*bintree{
-	"dashboard.html": &bintree{dashboardHtml, map[string]*bintree{}},
-	"error404.html": &bintree{error404Html, map[string]*bintree{}},
-	"login.html": &bintree{loginHtml, map[string]*bintree{}},
-	"mngrs.html": &bintree{mngrsHtml, map[string]*bintree{}},
+	"dashboard.html":         &bintree{dashboardHtml, map[string]*bintree{}},
+	"error404.html":          &bintree{error404Html, map[string]*bintree{}},
+	"login.html":             &bintree{loginHtml, map[string]*bintree{}},
+	"mngrs.html":             &bintree{mngrsHtml, map[string]*bintree{}},
 	"password_recovery.html": &bintree{password_recoveryHtml, map[string]*bintree{}},
-	"register.html": &bintree{registerHtml, map[string]*bintree{}},
-	"repeatable.html": &bintree{repeatableHtml, map[string]*bintree{}},
-	"tasks.html": &bintree{tasksHtml, map[string]*bintree{}},
-	"zonds.html": &bintree{zondsHtml, map[string]*bintree{}},
+	"register.html":          &bintree{registerHtml, map[string]*bintree{}},
+	"repeatable.html":        &bintree{repeatableHtml, map[string]*bintree{}},
+	"tasks.html":             &bintree{tasksHtml, map[string]*bintree{}},
+	"zonds.html":             &bintree{zondsHtml, map[string]*bintree{}},
 }}
 
 // RestoreAsset restores an asset under the given directory
@@ -416,4 +417,3 @@ func _filePath(dir, name string) string {
 	cannonicalName := strings.Replace(name, "\\", "/", -1)
 	return filepath.Join(append([]string{dir}, strings.Split(cannonicalName, "/")...)...)
 }
-
