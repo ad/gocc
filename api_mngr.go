@@ -5,12 +5,14 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strconv"
 	"time"
 
+	"github.com/gorilla/csrf"
 	uuid "github.com/nu7hatch/gouuid"
 )
 
-func MngrCreateHandler(w http.ResponseWriter, r *http.Request) {
+func ApiMngrCreateHandler(w http.ResponseWriter, r *http.Request) {
 	// if r.Method == "POST" {
 	name := r.FormValue("name")
 
@@ -48,4 +50,68 @@ func MngrCreateHandler(w http.ResponseWriter, r *http.Request) {
 	// } else {
 	// 	ShowCreateForm(w, r, "")
 	// }
+}
+
+func ApiShowMyMngrs(w http.ResponseWriter, r *http.Request) {
+	var perPage int = 20
+	page, _ := strconv.ParseInt(r.FormValue("page"), 10, 0)
+	if page <= 0 {
+		page = 1
+	}
+	userUuid, _ := Client.Get("user/uuid/" + r.Header.Get("X-Forwarded-User")).Result()
+	if userUuid == "" {
+		u, _ := uuid.NewV4()
+		userUuid = u.String()
+		Client.Set(fmt.Sprintf("user/uuid/%s", r.Header.Get("X-Forwarded-User")), userUuid, 0)
+	}
+
+	count, _ := Client.SCard("user/mngrs/" + userUuid).Result()
+	currentPage, pages, hasPrev, hasNext := GetPaginator(int(page), int(count), perPage)
+
+	var results []Mngr
+	if count > 0 {
+		// log.Println(count)
+		var cursor = uint64(int64(perPage) * int64(currentPage-1))
+		// var cursorNew uint64
+		var keys []string
+		var err error
+		keys, _, err = Client.SScan("user/mngrs/"+userUuid, cursor, "", int64(perPage)).Result()
+
+		if err != nil {
+			log.Println(err)
+		} else {
+			// log.Println(keys)
+			for i, val := range keys {
+				keys[i] = "mngrs/" + val
+			}
+
+			items, _ := Client.MGet(keys...).Result()
+			for _, val := range items {
+				if val != nil {
+					var t Mngr
+					err := json.Unmarshal([]byte(val.(string)), &t)
+					if err != nil {
+						log.Println(err.Error())
+					}
+					results = append(results, t)
+				}
+			}
+			// log.Println(len(results), count, results)
+		}
+		// log.Println(len(results), count, currentPage, cursor, cursorNew, perPage)
+	}
+
+	varmap := map[string]interface{}{
+		"results":  results,
+		"count":    count,
+		"pages":    pages,
+		"page":     page,
+		"has_prev": hasPrev,
+		"has_next": hasNext,
+	}
+
+	js, _ := json.Marshal(varmap)
+
+	w.Header().Set("X-CSRF-Token", csrf.Token(r))
+	fmt.Fprintf(w, `%s`, js)
 }

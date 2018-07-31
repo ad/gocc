@@ -95,6 +95,9 @@ func ZondUnsub(w http.ResponseWriter, r *http.Request) {
 func ShowMyZonds(w http.ResponseWriter, r *http.Request) {
 	var perPage int = 20
 	page, _ := strconv.ParseInt(r.FormValue("page"), 10, 0)
+	if page <= 0 {
+		page = 1
+	}
 	userUuid, _ := Client.Get("user/uuid/" + r.Header.Get("X-Forwarded-User")).Result()
 	if userUuid == "" {
 		u, _ := uuid.NewV4()
@@ -133,7 +136,7 @@ func ShowMyZonds(w http.ResponseWriter, r *http.Request) {
 					results = append(results, t)
 				}
 			}
-			log.Println(len(results), count, results)
+			// log.Println(len(results), count, results)
 		}
 		// log.Println(len(results), count, currentPage, cursor, cursorNew, perPage)
 	}

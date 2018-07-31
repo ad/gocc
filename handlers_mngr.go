@@ -62,6 +62,9 @@ func MngrUnsub(w http.ResponseWriter, r *http.Request) {
 func ShowMyMngrs(w http.ResponseWriter, r *http.Request) {
 	var perPage int = 20
 	page, _ := strconv.ParseInt(r.FormValue("page"), 10, 0)
+	if page <= 0 {
+		page = 1
+	}
 	userUuid, _ := Client.Get("user/uuid/" + r.Header.Get("X-Forwarded-User")).Result()
 	if userUuid == "" {
 		u, _ := uuid.NewV4()

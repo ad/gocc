@@ -76,7 +76,7 @@ func NotFound(w http.ResponseWriter, r *http.Request) {
 	// tmpl.Execute(w, nil)
 }
 
-func TokenHandler(w http.ResponseWriter, r *http.Request) {
+func ApiTokenHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("X-CSRF-Token", csrf.Token(r))
 	w.Write([]byte(""))
 }

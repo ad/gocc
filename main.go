@@ -77,37 +77,9 @@ func main() {
 
 	r.Handle("/", Throttle(time.Minute, 60, http.HandlerFunc(GetHandler))).Methods("GET")
 	r.Handle("/auth", http.HandlerFunc(AuthHandler))
-	r.Handle("/token", Throttle(time.Minute, 60, http.HandlerFunc(TokenHandler)))
-
-	r.Handle("/api/task/create", Throttle(time.Minute, 10, http.HandlerFunc(ApiTaskCreateHandler))).Methods("POST")
-	r.Handle("/api/zond/create", Throttle(time.Minute, 10, http.HandlerFunc(ZondCreateHandler))).Methods("POST")
-	r.Handle("/api/mngr/create", Throttle(time.Minute, 10, http.HandlerFunc(MngrCreateHandler))).Methods("POST")
-
 	r.HandleFunc("/dispatch/", func(w http.ResponseWriter, r *http.Request) { DispatchHandler(w, r, gogeoaddr) })
-
-	r.Handle("/version", Throttle(time.Minute, 60, http.HandlerFunc(ShowVersion))).Methods("GET")
 	r.Handle("/task/create", Throttle(time.Minute, 10, http.HandlerFunc(ShowCreateForm))).Methods("GET")
-	r.Handle("/task/my", Throttle(time.Minute, 60, http.HandlerFunc(ShowMyTasks))).Methods("GET")
-	r.Handle("/task/repeatable", Throttle(time.Minute, 60, http.HandlerFunc(ShowRepeatableTasks))).Methods("GET")
-	r.Handle("/task/repeatable/remove", Throttle(time.Minute, 10, http.HandlerFunc(TaskRepeatableRemoveHandler))).Methods("POST")
-
-	r.Handle("/zond/my", Throttle(time.Minute, 60, http.HandlerFunc(ShowMyZonds)))
-
-	r.Handle("/zond/task/block", Throttle(time.Minute, 60, ZondAuth(http.HandlerFunc(TaskZondBlockHandler)))).Methods("POST")
-	r.Handle("/zond/task/result", Throttle(time.Minute, 60, ZondAuth(http.HandlerFunc(TaskZondResultHandler)))).Methods("POST")
-	r.Handle("/zond/pong", Throttle(time.Minute, 15, ZondAuth(http.HandlerFunc(ZondPong)))).Methods("POST")
-
-	r.Handle("/zond/sub", Throttle(time.Minute, 60, http.HandlerFunc(ZondSub))).Methods("GET")
-	r.Handle("/zond/unsub", Throttle(time.Minute, 60, http.HandlerFunc(ZondUnsub))).Methods("GET")
-
-	r.Handle("/mngr/my", Throttle(time.Minute, 60, http.HandlerFunc(ShowMyMngrs)))
-
-	r.Handle("/mngr/task/block", MngrAuth(http.HandlerFunc(TaskMngrBlockHandler))).Methods("POST")
-	r.Handle("/mngr/task/result", MngrAuth(http.HandlerFunc(TaskMngrResultHandler))).Methods("POST")
-	r.Handle("/mngr/pong", Throttle(time.Minute, 5, MngrAuth(http.HandlerFunc(MngrPong)))).Methods("POST")
-
-	r.Handle("/mngr/sub", Throttle(time.Minute, 60, http.HandlerFunc(MngrSub))).Methods("GET")
-	r.Handle("/mngr/unsub", Throttle(time.Minute, 60, http.HandlerFunc(MngrUnsub))).Methods("GET")
+	r.Handle("/version", Throttle(time.Minute, 60, http.HandlerFunc(ShowVersion))).Methods("GET")
 
 	r.Handle("/user", Throttle(time.Minute, 60, http.HandlerFunc(UserInfoHandler))).Methods("GET")
 	r.Handle("/user/auth", Throttle(time.Minute, 60, http.HandlerFunc(UserAuthHandler)))
@@ -116,7 +88,44 @@ func main() {
 	r.Handle("/login", Throttle(time.Minute, 5, http.HandlerFunc(UserLoginHandler)))
 	r.Handle("/register", Throttle(time.Minute, 5, http.HandlerFunc(UserRegisterHandler)))
 
-	r.Handle("/api/task", Throttle(time.Minute, 10, http.HandlerFunc(TaskCreateHandler)))
+	r.Handle("/api/token", Throttle(time.Minute, 60, http.HandlerFunc(ApiTokenHandler))).Methods("GET")
+
+	r.Handle("/task/my", Throttle(time.Minute, 60, http.HandlerFunc(ShowMyTasks))).Methods("GET")
+	r.Handle("/api/task/my", Throttle(time.Minute, 60, http.HandlerFunc(ApiShowMyTasks))).Methods("GET")
+
+	r.Handle("/zond/my", Throttle(time.Minute, 60, http.HandlerFunc(ShowMyZonds))).Methods("GET")
+	r.Handle("/api/zond/my", Throttle(time.Minute, 60, http.HandlerFunc(ApiShowMyZonds))).Methods("GET")
+
+	r.Handle("/mngr/my", Throttle(time.Minute, 60, http.HandlerFunc(ShowMyMngrs))).Methods("GET")
+	r.Handle("/api/mngr/my", Throttle(time.Minute, 60, http.HandlerFunc(ApiShowMyMngrs))).Methods("GET")
+
+	r.Handle("/task/repeatable", Throttle(time.Minute, 60, http.HandlerFunc(ShowRepeatableTasks))).Methods("GET")
+	r.Handle("/api/task/repeatable", Throttle(time.Minute, 60, http.HandlerFunc(ApiShowRepeatableTasks))).Methods("GET")
+
+	r.Handle("/api/task/create", Throttle(time.Minute, 10, http.HandlerFunc(ApiTaskCreateHandler))).Methods("POST")
+	r.Handle("/api/zond/create", Throttle(time.Minute, 10, http.HandlerFunc(ApiZondCreateHandler))).Methods("POST")
+	r.Handle("/api/mngr/create", Throttle(time.Minute, 10, http.HandlerFunc(ApiMngrCreateHandler))).Methods("POST")
+	r.Handle("/api/task/repeatable/remove", Throttle(time.Minute, 10, http.HandlerFunc(ApiTaskRepeatableRemoveHandler))).Methods("POST")
+
+	// requests from zonds
+	r.Handle("/zond/task/block", Throttle(time.Minute, 60, ZondAuth(http.HandlerFunc(TaskZondBlockHandler)))).Methods("POST")
+	r.Handle("/zond/task/result", Throttle(time.Minute, 60, ZondAuth(http.HandlerFunc(TaskZondResultHandler)))).Methods("POST")
+	r.Handle("/zond/pong", Throttle(time.Minute, 15, ZondAuth(http.HandlerFunc(ZondPong)))).Methods("POST")
+
+	// internal requests
+	r.Handle("/zond/sub", Throttle(time.Minute, 60, http.HandlerFunc(ZondSub))).Methods("GET")
+	r.Handle("/zond/unsub", Throttle(time.Minute, 60, http.HandlerFunc(ZondUnsub))).Methods("GET")
+
+	r.Handle("/mngr/my", Throttle(time.Minute, 60, http.HandlerFunc(ShowMyMngrs)))
+
+	// requests from managers
+	r.Handle("/mngr/task/block", MngrAuth(http.HandlerFunc(TaskMngrBlockHandler))).Methods("POST")
+	r.Handle("/mngr/task/result", MngrAuth(http.HandlerFunc(TaskMngrResultHandler))).Methods("POST")
+	r.Handle("/mngr/pong", Throttle(time.Minute, 5, MngrAuth(http.HandlerFunc(MngrPong)))).Methods("POST")
+
+	// internal requests
+	r.Handle("/mngr/sub", Throttle(time.Minute, 60, http.HandlerFunc(MngrSub))).Methods("GET")
+	r.Handle("/mngr/unsub", Throttle(time.Minute, 60, http.HandlerFunc(MngrUnsub))).Methods("GET")
 
 	r.NotFoundHandler = http.HandlerFunc(NotFound)
 
