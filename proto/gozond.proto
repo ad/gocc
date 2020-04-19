@@ -1,4 +1,4 @@
-// protoc -I. -I./proto/third_party/googleapis --go_opt=paths=source_relative --go_out=Mgoogle=github.com/googleapis/googleapis/google,plugins=grpc:. --grpc-gateway_opt=paths=source_relative --grpc-gateway_out=logtostderr=true:. proto/gozond.proto
+// protoc -I. --go_opt=paths=source_relative --go_out=Mplugins=grpc:. --grpc-gateway_opt=paths=source_relative --grpc-gateway_out=logtostderr=true:. proto/gozond.proto
 
 syntax = "proto3";
 
@@ -6,15 +6,8 @@ package gozond.v1;
 
 option go_package = "github.com/ad/gocc/proto";
 
-import "google/api/annotations.proto";
-
 service Action {
-    rpc Call(CallRequest) returns (CallResponse) {
-        option (google.api.http) = {
-          post:"/call"
-          body: "*"
-        };
-    };
+    rpc Call(stream CallRequest) returns (stream CallResponse) {}
 }
 
 message CallRequest {
@@ -26,6 +19,6 @@ message CallRequest {
 }
 
 message CallResponse {
-    string status  = 1;
-    string peer_id = 2;
+    string Status  = 1;
+    string ZondUUID = 2;
 }
