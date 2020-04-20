@@ -1,16 +1,27 @@
-// protoc -I. --go_opt=paths=source_relative --go_out=Mplugins=grpc:. --grpc-gateway_opt=paths=source_relative --grpc-gateway_out=logtostderr=true:. proto/gozond.proto
-
+// protoc -I. --go_opt=paths=source_relative --go_out=plugins=grpc:. *.proto
 syntax = "proto3";
 
 package gozond.v1;
 
 option go_package = "github.com/ad/gocc/proto";
 
-service Action {
-    rpc Call(stream CallRequest) returns (stream CallResponse) {}
+service Zond {
+    rpc Init(stream InitRequest) returns (stream InitResponse) {}
+    rpc Task(stream TaskRequest) returns (stream TaskResponse) {}
+    rpc Block(stream BlockRequest) returns (stream BlockResponse) {}
+    rpc Result(stream ResultRequest) returns (stream ResultResponse) {}
+    rpc Ping(stream PingRequest) returns (stream PingResponse) {}
 }
 
-message CallRequest {
+message InitRequest {
+    string ZondUUID = 1;
+}
+
+message InitResponse {
+    string Status  = 1;
+}
+
+message TaskRequest {
     string ZondUUID = 1;
     string Action   = 2;
     string Param    = 3;
@@ -18,7 +29,36 @@ message CallRequest {
     string UUID     = 5;
 }
 
-message CallResponse {
+message TaskResponse {
     string Status  = 1;
     string ZondUUID = 2;
+}
+
+message BlockRequest {
+    string ZondUUID = 1;
+    string UUID     = 2;
+}
+
+message BlockResponse {
+    string Status  = 1;
+}
+
+message ResultRequest {
+    string ZondUUID = 1;
+    string Action   = 2;
+    string Param    = 3;
+    string Result   = 4;
+    string UUID     = 5;
+}
+
+message ResultResponse {
+    string Status  = 1;
+}
+
+message PingRequest {
+    string ZondUUID = 1;
+}
+
+message PingResponse {
+    string ZondUUID = 1;
 }
