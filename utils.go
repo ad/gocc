@@ -27,10 +27,10 @@ var (
 	ipv4Regex = regexp.MustCompile(`^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$`)
 )
 
-func IPToWSChannels(ip string, gogeoaddr *string) string {
+func IPToWSChannels(ip string, gogeoaddr string) string {
 	var result []string
 
-	var gogeoAddr = *gogeoaddr
+	var gogeoAddr = gogeoaddr
 
 	// TODO: receive addr from start args
 	url := gogeoAddr + "/?ip=" + ip
@@ -214,4 +214,11 @@ func Delete(url string) string {
 		return "err"
 	}
 	return "ok"
+}
+
+func LookupEnvOrString(key string, defaultVal string) string {
+	if val, ok := os.LookupEnv(key); ok {
+		return val
+	}
+	return defaultVal
 }

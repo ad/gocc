@@ -1,24 +1,28 @@
-// protoc -I. --go_opt=paths=source_relative --go_out=Mplugins=grpc:. --grpc-gateway_opt=paths=source_relative --grpc-gateway_out=logtostderr=true:. proto/gozond.proto
-
+// protoc -I. --go_opt=paths=source_relative --go_out=plugins=grpc:. *.proto
 syntax = "proto3";
 
 package gozond.v1;
 
 option go_package = "github.com/ad/gocc/proto";
 
-service Action {
-    rpc Call(stream CallRequest) returns (stream CallResponse) {}
+service Zond {
+    rpc Message(stream MessageRequest) returns (stream MessageResponse) {}
 }
 
-message CallRequest {
+message MessageRequest {
     string ZondUUID = 1;
     string Action   = 2;
     string Param    = 3;
     string Result   = 4;
     string UUID     = 5;
+    string Status   = 6;
 }
 
-message CallResponse {
-    string Status  = 1;
-    string ZondUUID = 2;
+message MessageResponse {
+    string ZondUUID = 1;
+    string Action   = 2;
+    string Param    = 3;
+    string Result   = 4;
+    string UUID     = 5;
+    string Status   = 6;
 }

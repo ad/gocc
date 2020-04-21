@@ -3,8 +3,10 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"math/rand"
+	"net"
 	"net/http"
 	"strings"
 	"time"
@@ -13,23 +15,67 @@ import (
 
 	"github.com/gorilla/csrf"
 	"github.com/gorilla/mux"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/metadata"
+
+	"github.com/ad/gocc/proto"
 )
 
-const version = "0.4.20"
+const version = "0.4.21"
 
-var port = flag.String("port", "9000", "Port to listen on")
-var gogeoaddr = flag.String("gogeoaddr", "http://127.0.0.1:9001", "Address:port of gogeo instance")
-var serveruuid, _ = uuid.NewV4()
-var fqdn = FQDN()
+var (
+	port       string
+	gogeoAddr  string
+	serverUUID string
+	su, _      = uuid.NewV4()
+	fqdn       = FQDN()
+)
+
+type Listener struct {
+	SS grpc.ServerStream
+}
+
+func (ss *Listener) SendZondRequest(req *proto.MessageRequest) error {
+	return ss.SS.SendMsg(req)
+}
+
+var allClients = make(map[string]*Listener)
 
 func init() {
 	log.SetFlags(log.Lmicroseconds | log.Lshortfile)
+
+	flag.StringVar(&port, "port", LookupEnvOrString("GOCC_PORT", "9000"), "Port to listen on")
+	flag.StringVar(&gogeoAddr, "gogeoaddr", LookupEnvOrString("GOCC_GOGEOADDR", "http://127.0.0.1:9001"), "proto://address:port of gogeo instance")
+	flag.StringVar(&serverUUID, "uuid", LookupEnvOrString("GOCC_UUID", su.String()), "server uuid")
+
 	flag.Parse()
 	rand.Seed(time.Now().UnixNano())
 }
 
+type srv struct{}
+
 func main() {
 	log.Printf("Started version %s at %s", version, fqdn)
+
+	lis, err := net.Listen("tcp", ":5000")
+	if err != nil {
+		log.Fatalf("failed to listen: %v", err)
+	}
+
+	// create grpc server
+	// Create an array of gRPC options with the credentials
+	opts := []grpc.ServerOption{grpc.StreamInterceptor(streamInterceptor)} // create a gRPC server object
+	s := grpc.NewServer(opts...)
+	proto.RegisterZondServer(s, srv{})
+
+	log.Printf("listening grpc on port %d", 5000)
+
+	// and start...
+	go func() {
+		if err := s.Serve(lis); err != nil {
+			log.Fatalf("failed to serve: %v", err)
+		}
+	}()
 
 	go StartSelfupdate("ad/gocc", version, fqdn)
 
@@ -77,7 +123,7 @@ func main() {
 
 	r.Handle("/", Throttle(time.Minute, 60, http.HandlerFunc(GetHandler))).Methods("GET")
 	r.Handle("/auth", http.HandlerFunc(AuthHandler))
-	r.HandleFunc("/dispatch/", func(w http.ResponseWriter, r *http.Request) { DispatchHandler(w, r, gogeoaddr) })
+	r.HandleFunc("/dispatch/", func(w http.ResponseWriter, r *http.Request) { DispatchHandler(w, r, gogeoAddr) })
 	r.Handle("/task/create", Throttle(time.Minute, 10, http.HandlerFunc(ShowCreateForm))).Methods("GET")
 	r.Handle("/version", Throttle(time.Minute, 60, http.HandlerFunc(ShowVersion))).Methods("GET")
 
@@ -172,10 +218,132 @@ func main() {
 		return http.HandlerFunc(fn)
 	}
 
-	log.Printf("listening on port %s", *port)
+	log.Printf("listening on port %s", port)
 
 	go ResendOffline()
 	go ResendRepeatable(true)
 
-	log.Fatal(http.ListenAndServe("127.0.0.1:"+*port, skipCheck(CSRF(loggingHandler(r)))))
+	go func() {
+		pingTicker := time.NewTicker(60 * time.Second)
+		for {
+			select {
+			case _ = <-pingTicker.C:
+				for zond := range allClients {
+					req := proto.MessageRequest{ZondUUID: zond, Action: "alive"}
+					if err := allClients[zond].SendZondRequest(&req); err != nil {
+						fmt.Printf("can not send %v", err)
+						delete(allClients, zond)
+					}
+				}
+			}
+		}
+	}()
+
+	log.Fatal(http.ListenAndServe("127.0.0.1:"+port, skipCheck(CSRF(loggingHandler(r)))))
+}
+
+// unaryInterceptor calls authenticateClient with current context
+func streamInterceptor(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+	// authentication (token verification)
+	md, ok := metadata.FromIncomingContext(ss.Context())
+	if !ok {
+		return fmt.Errorf("metadata not found")
+	}
+
+	log.Println("request", info, md)
+	if val, ok := md["zonduuid"]; ok && len(val) == 1 {
+		log.Println("request FROM", val[0])
+
+		allClients[val[0]] = &Listener{SS: ss}
+	}
+
+	// log.Println("request", info)
+	// s, ok := info.Server.(*api.Server)
+	// if !ok {
+	// 	return nil, fmt.Errorf("unable to cast server")
+	// }
+	// clientID, err := authenticateClient(ctx, s)
+	// if err != nil {
+	// 	return nil, err
+	// }
+	// ctx = context.WithValue(ctx, clientIDKey, clientID)
+	return handler(srv, ss)
+}
+
+func (s srv) Message(srv proto.Zond_MessageServer) error {
+	// fmt.Printf("%+v\n", req)
+
+	log.Println("Message...")
+	// var max int32
+	ctx := srv.Context()
+
+	for {
+
+		// exit if context is done
+		// or continue
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+
+		// receive data from stream
+		req, err := srv.Recv()
+		if err == io.EOF {
+			// return will close stream from server side
+			log.Println("exit")
+			return nil
+		}
+		if err != nil {
+			log.Printf("receive error %v", err)
+			continue
+		}
+
+		log.Printf("received %+v", req)
+
+		// continue if number reveived from stream
+		// less than max
+		// if req.Num <= max {
+		// 	continue
+		// }
+
+		// update max and send it to stream
+		// max = req.Num
+		resp := proto.MessageResponse{Status: "ok"}
+		if err := srv.Send(&resp); err != nil {
+			log.Printf("send error %v", err)
+		}
+
+		// request := proto.CallRequest{Action: "from server"}
+		// if err := srv.Send(&request); err != nil {
+		// 	log.Printf("send error %v", err)
+		// }
+		// log.Printf("send new max=%d", max)
+	}
+
+	// if req.Action != "alive" {
+	// 	fmt.Printf("%+v\n", req)
+	// }
+
+	// if req.Action == "ping" {
+	// 	pingCheck(req.Param, req.UUID)
+	// } else if req.Action == "head" {
+	// 	headCheck(req.Param, req.UUID)
+	// } else if req.Action == "dns" {
+	// 	dnsCheck(req.Param, req.UUID)
+	// } else if req.Action == "traceroute" {
+	// 	tracerouteCheck(req.Param, req.UUID)
+	// } else if req.Action == "alive" {
+	// 	if !pongStarted.IsSet() {
+	// 		pongStarted.Set()
+
+	// 		req.ZondUUID = *zonduuid
+	// 		js, _ := json.Marshal(req)
+
+	// 		Post("http://"+*addr+"/zond/pong", string(js))
+
+	// 		pongStarted.UnSet()
+	// 	}
+	// }
+	// return &proto.CallResponse{Status: "success"}, nil
 }

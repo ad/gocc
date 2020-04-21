@@ -96,7 +96,7 @@ func GetHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write(jsonBody)
 }
 
-func DispatchHandler(w http.ResponseWriter, r *http.Request, gogeoaddr *string) {
+func DispatchHandler(w http.ResponseWriter, r *http.Request, gogeoaddr string) {
 	var uuid = r.Header.Get("X-ZondUuid")
 	var mngruuid = r.Header.Get("X-MngrUuid")
 	var ip = r.Header.Get("X-Forwarded-For")
