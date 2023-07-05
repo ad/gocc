@@ -7,9 +7,8 @@ require (
 	github.com/arschles/assert v2.0.0+incompatible // indirect
 	github.com/arschles/go-bindata-html-template v0.0.0-20170123182818-839a6918b9ff
 	github.com/blang/semver v3.5.1+incompatible
-	github.com/davecgh/go-spew v1.1.0 // indirect
 	github.com/go-redis/redis v6.13.2+incompatible
-	github.com/golang/protobuf v1.4.0-rc.4.0.20200313231945-b860323f09d0
+	github.com/golang/protobuf v1.5.2
 	github.com/google/go-github v15.0.0+incompatible // indirect
 	github.com/google/go-querystring v0.0.0-20170111101155-53e6ce116135 // indirect
 	github.com/gorilla/csrf v1.5.1
@@ -20,14 +19,11 @@ require (
 	github.com/nu7hatch/gouuid v0.0.0-20131221200532-179d4d0c4d8d
 	github.com/onsi/ginkgo v1.12.0 // indirect
 	github.com/onsi/gomega v1.9.0 // indirect
-	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/rhysd/go-github-selfupdate v0.0.0-20180520142321-41c1bbb0804a
-	github.com/stretchr/testify v1.2.2 // indirect
 	github.com/tcnksm/go-gitconfig v0.1.2 // indirect
 	github.com/ulikunitz/xz v0.5.8 // indirect
 	github.com/ulule/limiter v2.2.0+incompatible
 	golang.org/x/crypto v0.1.0
-	google.golang.org/genproto v0.0.0-20190927181202-20e1ac93f88c // indirect
-	google.golang.org/grpc v1.24.0
-	google.golang.org/protobuf v1.21.0
+	google.golang.org/grpc v1.53.0
+	google.golang.org/protobuf v1.28.1
 )
