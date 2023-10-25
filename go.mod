@@ -8,7 +8,7 @@ require (
 	github.com/arschles/go-bindata-html-template v0.0.0-20170123182818-839a6918b9ff
 	github.com/blang/semver v3.5.1+incompatible
 	github.com/go-redis/redis v6.13.2+incompatible
-	github.com/golang/protobuf v1.5.2
+	github.com/golang/protobuf v1.5.3
 	github.com/google/go-github v15.0.0+incompatible // indirect
 	github.com/google/go-querystring v0.0.0-20170111101155-53e6ce116135 // indirect
 	github.com/gorilla/csrf v1.5.1
@@ -24,6 +24,6 @@ require (
 	github.com/ulikunitz/xz v0.5.8 // indirect
 	github.com/ulule/limiter v2.2.0+incompatible
 	golang.org/x/crypto v0.1.0
-	google.golang.org/grpc v1.53.0
-	google.golang.org/protobuf v1.28.1
+	google.golang.org/grpc v1.56.3
+	google.golang.org/protobuf v1.30.0
 )
